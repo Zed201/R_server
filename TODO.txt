@@ -1,2 +1,5 @@
 -Fazer sistema de logs(terminal e .log)
--Fazer suporte a http quase 100%
+-Fazer suporte a http quase 100%(X)
+-Melhorar o log para não ficar repetindo as mesma requisições
+-Fazer alguma forma tipo o live server para ele dar reload sempre que o arquivo mudar
+-
