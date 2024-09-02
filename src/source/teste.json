@@ -1,0 +1,10 @@
+{
+    "Nome": "Luiz Gustavo",
+    "numero": 132413,
+    "booleano": false,
+    "objetos": {
+        "elemento 1": 1,
+        "elemento 2": 2
+    },
+    "array": [1,3,4,5]
+}

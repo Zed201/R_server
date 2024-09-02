@@ -1,0 +1,2 @@
+-Fazer sistema de logs(terminal e .log)
+-Fazer suporte a http quase 100%
