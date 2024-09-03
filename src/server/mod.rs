@@ -7,6 +7,10 @@ use std::io;
 
 static FILE_SOURCE_PATH: &str = "src/source";
 
+enum httpMet{
+    GET,
+    POST,
+}
 pub fn read_req(stream: &mut TcpStream) -> Vec<String> {
     let buffer = BufReader::new(stream);
     let request: Vec<String> = buffer
@@ -109,6 +113,8 @@ pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
 /// image/png // implementar apenas png
 /// application/json
 /// application/pdf
+
+
 
 pub fn handle_con(stream: &mut TcpStream) {
     let request = read_req(stream);

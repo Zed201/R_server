@@ -1,5 +1,7 @@
 -Fazer sistema de logs(terminal e .log)
 -Fazer suporte a http quase 100%(X)
--Melhorar o log para não ficar repetindo as mesma requisições
--Fazer alguma forma tipo o live server para ele dar reload sempre que o arquivo mudar
--
+-Melhorar o log para não ficar repetindo as mesma requisições(alguma forma de identificar requisições únicas por múltiploas arquivos)
+-Fazer alguma forma tipo o live server para ele dar reload sempre que o arquivo mudar(usar mudança de last save)
+-Enum de http responde_code
+-Enum de Request metho
+-Fazer flag para indicar a porta do sistema a ser aberta
