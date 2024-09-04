@@ -1,5 +1,6 @@
 use std::net::TcpListener;
 use std::env;
+use std::fs::File;
 
 mod threadpool;
 use threadpool::*;
@@ -21,6 +22,5 @@ fn main() {
         pool.execute(move || handle_con(&mut stream));
     }
     println!("Desligando");
-
     
 }

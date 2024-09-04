@@ -1,16 +1,97 @@
-use std::fmt::format;
+use core::fmt;
+use std::fmt::{format, write};
 use std::io::{prelude::*, BufReader};
 use std::time::Duration;
 use std::{fs, thread, usize};
 use std::net::TcpStream;
 use std::io;
 
-static FILE_SOURCE_PATH: &str = "src/source";
+static FILE_SOURCE_PATH: &str = "src/source/";
 
 enum httpMet{
     GET,
     POST,
 }
+
+enum File_type{
+    TXT,
+    HTML,
+    CSS,
+    JS,
+    PNG,
+    JPEG,
+    JPG,
+    JSON,
+    PDF,
+    ICO,
+}
+
+use File_type::*;
+
+fn getFile_type(file_name: &str) -> File_type{
+    let extension = file_name.split(".").collect::<Vec<_>>()[1];
+    match extension {
+        "txt" => TXT,
+        "html" => HTML,
+        "css" => CSS,
+        "js" => JS,
+        "png" => PNG,
+        "jpeg" => JPEG,
+        "jpg" => JPG,
+        "json" => JSON,
+        "pdf" => PDF,
+        "ico" => ICO,
+        _ => TXT
+    }
+}
+
+use httpMet::*;
+
+impl fmt::Display for httpMet{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            GET => write!(f, "GET"),
+            POST => write!(f, "POST"),
+        }
+    }
+}
+
+fn httpM_toStr(method: httpMet) -> String{
+    match method {
+        GET => String::from("GET"),
+        POST => String::from("POST"),
+    }
+}
+
+fn httpM_fromStr(method: &str) -> httpMet{
+    match method {
+        "GET" => GET,
+        "POST" => POST,
+        _ => GET
+    }
+}
+
+struct Request{
+    method: httpMet,
+    Host: String,
+    required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
+}
+
+impl Request{
+    fn new(stream: &mut TcpStream) -> Request{
+        let request = read_req(stream);
+        let uri: Vec<&str> = request[0].split(" ").collect();
+        let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string();
+        Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()}
+    }
+}
+
+impl fmt::Display for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} request from {} in {}", self.method, self.Host, self.required)
+    }
+}
+
 pub fn read_req(stream: &mut TcpStream) -> Vec<String> {
     let buffer = BufReader::new(stream);
     let request: Vec<String> = buffer
@@ -62,22 +143,24 @@ pub fn response_make(file_send: &str, status_code: u32, content_len: usize) -> S
 
 // converter o data_type em Content-Type
 pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
-    let extension =  file_name.split(".").collect::<Vec<_>>();
-    match extension[1] {
-        "txt" => "text/plain\r\n",
-        "html" => "text/html\r\n",
-        "css" => "text/css\r\n",
-        "js" => " text/javascript\r\n",
-        "png" | "jpeg" | "jpg" => "image/png\r\n", // completar com os outros tipos
-        "json" => "application/json\r\n",
-        "pdf" => "application/pdf\r\n",
-        "ico" => "image/x-icon\r\n",
-        _ => "text/plain\r\n"
+    let extension =  getFile_type(file_name);
+    match extension {
+        TXT => "text/plain\r\n",
+        HTML => "text/html\r\n",
+        CSS => "text/css\r\n",
+        JS => " text/javascript\r\n",
+        PNG | JPEG | JPG => "image/png\r\n", // completar com os outros tipos
+        JSON => "application/json\r\n",
+        PDF => "application/pdf\r\n",
+        ICO => "image/x-icon\r\n",
     }
 }
 
 pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
     // caso seja de texto coloca no final do responde
+    // TODO: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
+    // TODO: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
+    // TODO: Depois pensar em algo para ele enviar a pagina de ver os arquivos e diretorios(fazer uma forma de representar os diretorios, para ser representado de forma recursiva depois)
     if file_name.ends_with("html"){ // fazer um ir para casos de text, não so html
         let content = read_file_text(file_name).unwrap();
         let response = format!(
@@ -115,16 +198,16 @@ pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
 /// application/pdf
 
 
-
 pub fn handle_con(stream: &mut TcpStream) {
-    let request = read_req(stream);
-    let uri: Vec<&str> = request[0].split(" ").collect();
-
-    // melhorar aqui, para redirecionar para um padrão de html
-    if uri[0] == "GET" {
-        println!("{:?}", uri);
-        let file = if uri[1] != "/" { uri[1] } else { "/index.html" };
-        // retirar o primeiro elemenot de 
-        let _ = file_sender(stream, 200, file);
-    }
+    let req = Request::new(stream);
+    println!("{}", req);
+    match req.method {
+        GET => {
+            // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
+            let _ = file_sender(stream, 200, &req.required);
+        },
+        POST =>{
+            // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
+        },
+    };
 }
