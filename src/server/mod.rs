@@ -85,9 +85,10 @@ struct Request{
 impl Request{
     fn new(stream: &mut TcpStream) -> Request{
         let request = read_req(stream);
-        let uri: Vec<&str> = request[0].split(" ").collect();
+        // TODO: Erro de index out of the bound aqui(não é sempre que acontece, ele fala de erro no index 0)
+        let uri: Vec<&str> = request[0].split(" ").collect(); //!
         let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string();
-        Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()}
+        Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()} //!
     }
 }
 
