@@ -1,8 +1,11 @@
 use core::fmt;
 use std::fs::ReadDir;
 use std::io::{prelude::*, BufReader};
+use std::task::Context;
 use std::{fs, usize};
 use std::net::TcpStream;
+use std::path::{Path};
+use build_html::{Html, HtmlContainer, HtmlPage};
 
 static FILE_SOURCE_PATH: &str = "./test_source/";
 
@@ -30,7 +33,8 @@ enum File_type{
 use File_type::*;
 
 fn getFile_type(file_name: &str) -> File_type{
-    let extension = *file_name.split(".").collect::<Vec<_>>().last().unwrap();
+    let extension = Path::new(file_name).extension().unwrap().to_str().unwrap();
+    // let extension = *file_name.split(".").collect::<Vec<_>>().last().unwrap();
     match extension {
         "txt" => TXT,
         "html" => HTML,
@@ -42,7 +46,7 @@ fn getFile_type(file_name: &str) -> File_type{
         "json" => JSON,
         "pdf" => PDF,
         "ico" => ICO,
-        _ => TXT
+        _ => DIR
     }
 }
 
@@ -137,65 +141,81 @@ fn search_index() -> String{
     let dir = fs::read_dir(FILE_SOURCE_PATH).unwrap();
     let mut tmp: String = String::new();
     for i in dir {
-        let d = i.unwrap().file_name();
-        let t = getFile_type(d.to_str().unwrap());
+        let p = i.unwrap().path();
+        if p.is_file(){
+            let d = p.file_name().unwrap().to_str().unwrap();
+        let t = getFile_type(d);
         if d == "index.html"{
             return String::from("index.html");
         } else if t == HTML{
-            tmp = d.to_str().unwrap().to_string();
+            tmp = d.to_string();
         }
+    }
     }
     tmp
 }
 
-pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
+// TODO? Talvez refatorar essa função, pois ta muitca coisa nela
+pub fn file_sender(stream: &mut TcpStream, file_name: &str){
     // caso seja de texto coloca no final do responde
-    // TODO: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
-    // TODO: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
+    // TODO[X]: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
+    // TODO[X]: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
     // TODO: Depois pensar em algo para ele enviar a pagina de ver os arquivos e diretorios(fazer uma forma de representar os diretorios, para ser representado de forma recursiva depois)
 
     // se o nome de arquivo for "" vazio
-    
+    let mut status = 200;
+    let mut relative_p = String::from(FILE_SOURCE_PATH);
+    relative_p.push_str(file_name);
+    let p = Path::new(&relative_p);
     if file_name.len() == 0{
         let f = search_index();
         if f.len() > 0 {
             let content = read_file_text(&f).unwrap();
             let response = format!(
                 "{}{}",
-                response_make(&f, status, content.len()), content
+                good_response_make(&f, status, content.len()), content
             );
             stream.write(response.as_bytes()).unwrap();
         } else {
-            // mensagem de erro
+            // mensagem de erro que não achou um html(diferente de arquivo nao existe)
+            status = 404;
         }
         // refatorar daqui para baixo
-    } else { 
+    } else if p.is_file() { 
+        // mensagem de erro para caso não ache o arquivo em si(ta bugando tudo)
+        // talvez usar o Path, ele retorna um erro caso o arquivo não exista
         match getFile_type(file_name) {
-            TXT | HTML => {
-                let content = read_file_text(file_name).unwrap();
+            TXT | HTML | CSS | JS | JSON => {
+                let content = read_file_text(file_name).unwrap(); // talvez um panic aqui
                 let response = format!(
                     "{}{}",
-                    response_make(file_name, status, content.len()), content
+                    good_response_make(file_name, status, content.len()), content
                 );
                 stream.write(response.as_bytes()).unwrap();
             },
             _ => {
                 let content = read_file_bytes(file_name).unwrap();
-                let response = format!(
-                    "{}",
-                    response_make(file_name, status, content.len())
-                );
+                let response = good_response_make(file_name, status, content.len());
                 stream.write(response.as_bytes()).unwrap();
                 stream.write(&content).unwrap();
             }
         }
+
+    } else if p.is_dir(){
+        // fazer response da pagina que seleciona um arquivo
+        println!("Pasta requisitada");
+    } else {
+        println!("Arquivo {} não existe", file_name);
+        status = 404;
+        let (header, html) = bad_response_make(status);
+        stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
     }
     // caso seja uma imagem ou coisa parecida
 }
 
 // ExactSizeIterator é para usa o métood len
 // T: Sized + ExactSizeIterator
-pub fn response_make(file_send: &str, status_code: u32, content_len: usize) -> String {
+pub fn good_response_make(file_send: &str, status_code: u32, content_len: usize) -> String {
     let status_ = header_make(status_code);
 
     let response = format!(
@@ -203,6 +223,35 @@ pub fn response_make(file_send: &str, status_code: u32, content_len: usize) -> S
         status_, cont_type(file_send), content_len
     ); // depois desse texto é só colocar o content caso for de texte e caso não só manda os bytes dps
     response
+}
+/////////////////////////////////////////////////
+// HTTP/1.1 404 Not Found
+// Content-Type: text/html; charset=UTF-8
+// Content-Length: 123
+
+// <html>
+// <head>
+//     <title>404 Not Found</title>
+// </head>
+// <body>
+//     <h1>404 Not Found</h1>
+//     <p>The requested resource could not be found on this server.</p>
+// </body>
+// </html>
+///////////////////////////////////
+fn bad_response_make(status_code: u32) -> (String, String){
+    // usando a crate build_html só para facilitar
+    let status_ = header_make(status_code);
+    let code_s = code_to_status(status_code);
+    let html_error = HtmlPage::new()
+        .with_title(&code_s)
+        .with_header(1, &code_s)
+        .with_paragraph("The requested resource could not be found on this server.");
+    let Shtml = html_error.to_html_string();
+    (format!(
+        "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
+        status_, Shtml.len()
+    ), Shtml)
 }
 
 // converter o data_type em Content-Type
@@ -245,7 +294,7 @@ pub fn handle_con(stream: &mut TcpStream) {
     match req.method {
         GET => {
             // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
-            let _ = file_sender(stream, 200, &req.required);
+            let _ = file_sender(stream, &req.required);
         },
         POST =>{
             // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 

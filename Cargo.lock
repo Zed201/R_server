@@ -3,5 +3,14 @@
 version = 3
 
 [[package]]
+name = "build_html"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "225eb82ce9e70dcc0cfa6e404d0f353326b6e163bf500ec4711cec317d11935c"
+
+[[package]]
 name = "rust_server"
 version = "0.1.0"
+dependencies = [
+ "build_html",
+]

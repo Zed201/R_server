@@ -6,3 +6,8 @@
 -Enum de Request metho(X)
 -Fazer flag para indicar a porta do sistema a ser aberta(X)
 -Fazer pagina de seleção de arquivos caso não tenha o index.html
+
+
+-- INVESTIGAR ESSE ERRO QUE AS VEZES dar
+index out of bounds: the len is 0 but the index is 0
+Talvez seja no get_file_type
