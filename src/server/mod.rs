@@ -165,24 +165,30 @@ pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
                 response_make(&f, status, content.len()), content
             );
             stream.write(response.as_bytes()).unwrap();
+        } else {
+            // mensagem de erro
         }
         // refatorar daqui para baixo
-    } else if file_name.ends_with("html"){ // fazer um ir para casos de text, não so html
-        let content = read_file_text(file_name).unwrap();
-        let response = format!(
-            "{}{}",
-            response_make(file_name, status, content.len()), content
-        );
-        stream.write(response.as_bytes()).unwrap();
-    } else {
-        // ta dando algo errado ao mandar a imagem
-        let content = read_file_bytes(file_name).unwrap();
-        let response = format!(
-            "{}",
-            response_make(file_name, status, content.len())
-        );
-        stream.write(response.as_bytes()).unwrap();
-        stream.write(&content).unwrap();
+    } else { 
+        match getFile_type(file_name) {
+            TXT | HTML => {
+                let content = read_file_text(file_name).unwrap();
+                let response = format!(
+                    "{}{}",
+                    response_make(file_name, status, content.len()), content
+                );
+                stream.write(response.as_bytes()).unwrap();
+            },
+            _ => {
+                let content = read_file_bytes(file_name).unwrap();
+                let response = format!(
+                    "{}",
+                    response_make(file_name, status, content.len())
+                );
+                stream.write(response.as_bytes()).unwrap();
+                stream.write(&content).unwrap();
+            }
+        }
     }
     // caso seja uma imagem ou coisa parecida
 }

@@ -1,6 +1,5 @@
-*.png filter=lfs diff=lfs merge=lfs -text
-*.ico filter=lfs diff=lfs merge=lfs -text
-src/source/response.png filter=lfs diff=lfs merge=lfs -text
-src/source/request.png filter=lfs diff=lfs merge=lfs -text
-src/source/favicon1.ico filter=lfs diff=lfs merge=lfs -text
-src/source/favicon.ico filter=lfs diff=lfs merge=lfs -text
+test_source/png.png filter=lfs diff=lfs merge=lfs -text
+test_source/jpeg.jpeg filter=lfs diff=lfs merge=lfs -text
+test_source/pdf.pdf filter=lfs diff=lfs merge=lfs -text
+test_source/favicon1.ico filter=lfs diff=lfs merge=lfs -text
+test_source/favicon.ico filter=lfs diff=lfs merge=lfs -text
