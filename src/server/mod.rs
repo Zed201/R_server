@@ -1,18 +1,18 @@
 use core::fmt;
-use std::fmt::{format, write};
+use std::fs::ReadDir;
 use std::io::{prelude::*, BufReader};
-use std::time::Duration;
-use std::{fs, thread, usize};
+use std::{fs, usize};
 use std::net::TcpStream;
-use std::io;
 
-static FILE_SOURCE_PATH: &str = "src/source/";
+static FILE_SOURCE_PATH: &str = "./test_source/";
 
 enum httpMet{
     GET,
     POST,
 }
 
+// não so de file, mas o dir entra para compor o tipo de dado
+#[derive(PartialEq)]
 enum File_type{
     TXT,
     HTML,
@@ -24,12 +24,13 @@ enum File_type{
     JSON,
     PDF,
     ICO,
+    DIR
 }
 
 use File_type::*;
 
 fn getFile_type(file_name: &str) -> File_type{
-    let extension = file_name.split(".").collect::<Vec<_>>()[1];
+    let extension = *file_name.split(".").collect::<Vec<_>>().last().unwrap();
     match extension {
         "txt" => TXT,
         "html" => HTML,
@@ -129,6 +130,63 @@ pub fn read_file_bytes(file_name: &str) -> Result<Vec<u8>, String>{
     };
     Ok(content)
 }
+
+// procurar o aquivo index caso o request seja /, caso não encontre o index.html, retornar um html qualquer(o ultimo na iteração)
+// caso não tenha html ele retorna vazio, aí envia error 404
+fn search_index() -> String{
+    let dir = fs::read_dir(FILE_SOURCE_PATH).unwrap();
+    let mut tmp: String = String::new();
+    for i in dir {
+        let d = i.unwrap().file_name();
+        let t = getFile_type(d.to_str().unwrap());
+        if d == "index.html"{
+            return String::from("index.html");
+        } else if t == HTML{
+            tmp = d.to_str().unwrap().to_string();
+        }
+    }
+    tmp
+}
+
+pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
+    // caso seja de texto coloca no final do responde
+    // TODO: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
+    // TODO: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
+    // TODO: Depois pensar em algo para ele enviar a pagina de ver os arquivos e diretorios(fazer uma forma de representar os diretorios, para ser representado de forma recursiva depois)
+
+    // se o nome de arquivo for "" vazio
+    
+    if file_name.len() == 0{
+        let f = search_index();
+        if f.len() > 0 {
+            let content = read_file_text(&f).unwrap();
+            let response = format!(
+                "{}{}",
+                response_make(&f, status, content.len()), content
+            );
+            stream.write(response.as_bytes()).unwrap();
+        }
+        // refatorar daqui para baixo
+    } else if file_name.ends_with("html"){ // fazer um ir para casos de text, não so html
+        let content = read_file_text(file_name).unwrap();
+        let response = format!(
+            "{}{}",
+            response_make(file_name, status, content.len()), content
+        );
+        stream.write(response.as_bytes()).unwrap();
+    } else {
+        // ta dando algo errado ao mandar a imagem
+        let content = read_file_bytes(file_name).unwrap();
+        let response = format!(
+            "{}",
+            response_make(file_name, status, content.len())
+        );
+        stream.write(response.as_bytes()).unwrap();
+        stream.write(&content).unwrap();
+    }
+    // caso seja uma imagem ou coisa parecida
+}
+
 // ExactSizeIterator é para usa o métood len
 // T: Sized + ExactSizeIterator
 pub fn response_make(file_send: &str, status_code: u32, content_len: usize) -> String {
@@ -153,33 +211,10 @@ pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
         JSON => "application/json\r\n",
         PDF => "application/pdf\r\n",
         ICO => "image/x-icon\r\n",
+        _ => "text/plain\r\n", // modficar para ser o de dir
     }
 }
 
-pub fn file_sender(stream: &mut TcpStream, status: u32, file_name: &str){
-    // caso seja de texto coloca no final do responde
-    // TODO: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
-    // TODO: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
-    // TODO: Depois pensar em algo para ele enviar a pagina de ver os arquivos e diretorios(fazer uma forma de representar os diretorios, para ser representado de forma recursiva depois)
-    if file_name.ends_with("html"){ // fazer um ir para casos de text, não so html
-        let content = read_file_text(file_name).unwrap();
-        let response = format!(
-            "{}{}",
-            response_make(file_name, status, content.len()), content
-        );
-        stream.write(response.as_bytes()).unwrap();
-    } else {
-        // ta dando algo errado ao mandar a imagem
-        let content = read_file_bytes(file_name).unwrap();
-        let response = format!(
-            "{}",
-            response_make(file_name, status, content.len())
-        );
-        stream.write(response.as_bytes()).unwrap();
-        stream.write(&content).unwrap();
-    }
-    // caso seja uma imagem ou coisa parecida
-}
 
 ///////////////////////////////////////
 /// A estrutura básica da resposta do http é 
