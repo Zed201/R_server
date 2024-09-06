@@ -7,6 +7,9 @@ use std::net::TcpStream;
 use std::path::{Path};
 use build_html::{Html, HtmlContainer, HtmlPage};
 
+mod log;
+use log::*;
+
 static FILE_SOURCE_PATH: &str = "./test_source/";
 
 enum httpMet{
@@ -34,7 +37,6 @@ use File_type::*;
 
 fn getFile_type(file_name: &str) -> File_type{
     let extension = Path::new(file_name).extension().unwrap().to_str().unwrap();
-    // let extension = *file_name.split(".").collect::<Vec<_>>().last().unwrap();
     match extension {
         "txt" => TXT,
         "html" => HTML,
@@ -83,18 +85,26 @@ struct Request{
 }
 
 impl Request{
-    fn new(stream: &mut TcpStream) -> Request{
+    fn new(stream: &mut TcpStream) -> Result<Request, String>{
         let request = read_req(stream);
+        if request.len() < 2{
+            return Err(String::from("Erro ao ler o request"));
+        }
         // TODO: Erro de index out of the bound aqui(não é sempre que acontece, ele fala de erro no index 0)
-        let uri: Vec<&str> = request[0].split(" ").collect(); //!
-        let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string();
-        Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()} //!
+        let uri: Vec<&str> = request[0].split(" ").collect(); // !
+        let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string(); // ! aqui
+        let r = Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()}; // !
+        Ok(r)
     }
 }
 
 impl fmt::Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} request from {} in {}", self.method, self.Host, self.required)
+        if self.required.len() > 0{
+            write!(f, "{} request for {}", self.method, self.required)
+        } else {
+            write!(f, "{} request for /", self.method)
+        }
     }
 }
 
@@ -158,11 +168,6 @@ fn search_index() -> String{
 
 // TODO? Talvez refatorar essa função, pois ta muitca coisa nela
 pub fn file_sender(stream: &mut TcpStream, file_name: &str){
-    // caso seja de texto coloca no final do responde
-    // TODO[X]: tratar paca casos de / procuar o index.html, caso não ache ele ou outro aquivo, mandar um 404 error
-    // TODO[X]: Fazer ele primeiro procuar pelo html, fazer algum if com o dado do nome para ele verificar ser html e mandar o resto assim
-    // TODO: Depois pensar em algo para ele enviar a pagina de ver os arquivos e diretorios(fazer uma forma de representar os diretorios, para ser representado de forma recursiva depois)
-
     // se o nome de arquivo for "" vazio
     let mut status = 200;
     let mut relative_p = String::from(FILE_SOURCE_PATH);
@@ -180,6 +185,8 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
         } else {
             // mensagem de erro que não achou um html(diferente de arquivo nao existe)
             status = 404;
+            warning("Nenhum Html foi achado");
+            // TODO: Ai vai fazer mostrar o html da pagina normal
         }
         // refatorar daqui para baixo
     } else if p.is_file() { 
@@ -204,9 +211,10 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
 
     } else if p.is_dir(){
         // fazer response da pagina que seleciona um arquivo
-        println!("Pasta requisitada");
+        warning("Pasta requisitada");
+        // TODO: mostrar o html da pagina que foi requisitada
     } else {
-        println!("Arquivo {} não existe", file_name);
+        file_not(file_name);
         status = 404;
         let (header, html) = bad_response_make(status);
         stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
@@ -290,15 +298,21 @@ pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
 
 
 pub fn handle_con(stream: &mut TcpStream) {
-    let req = Request::new(stream);
-    println!("{}", req);
-    match req.method {
-        GET => {
-            // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
-            let _ = file_sender(stream, &req.required);
+    match Request::new(stream){
+        Ok(req) => {
+        print_rq(&req);
+        match req.method {
+                GET => {
+                    // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
+                    let _ = file_sender(stream, &req.required);
+                },
+                POST =>{
+                    // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
+                },
+            };
         },
-        POST =>{
-            // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
+        Err(s) => {
+            warning(&s);
         },
     };
 }

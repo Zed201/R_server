@@ -7,7 +7,6 @@ use threadpool::*;
 mod server;
 use server::*;
 
-use std::fs::{ReadDir};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -15,18 +14,14 @@ fn main() {
         panic!("Porta não informada");
     }
     let ip_porta = format!("127.0.0.1:{}", &args[1]);
-    // println!("Criando server em https://localhost:{}/index.html", args[1]);
-    // let t = SystemTime::now();
 
     let lister = TcpListener::bind(ip_porta).expect("Não conseguiu criar o socket na porta escolhida\n");
     let pool = ThreadPool::new(5);
 
     for s in lister.incoming() {
         let mut stream = s.unwrap();
-        // println!("{:?}", t.elapsed());
         pool.execute(move || handle_con(&mut stream));
     }
     println!("Desligando");
 
-    
 }

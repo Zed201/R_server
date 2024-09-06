@@ -11,3 +11,8 @@
 -- INVESTIGAR ESSE ERRO QUE AS VEZES dar
 index out of bounds: the len is 0 but the index is 0
 Talvez seja no get_file_type
+thread '<unnamed>' panicked at src/server/mod.rs:92:37:
+index out of bounds: the len is 0 but the index is 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+^C
+
