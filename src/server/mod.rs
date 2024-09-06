@@ -36,7 +36,8 @@ enum File_type{
 use File_type::*;
 
 fn getFile_type(file_name: &str) -> File_type{
-    let extension = Path::new(file_name).extension().unwrap().to_str().unwrap();
+    // TODO: Ajeitar quando for nome de dir, dando algum erro
+    let extension = Path::new(file_name).extension().unwrap().to_str().unwrap_or_else(|| "");
     match extension {
         "txt" => TXT,
         "html" => HTML,
@@ -155,13 +156,13 @@ fn search_index() -> String{
         let p = i.unwrap().path();
         if p.is_file(){
             let d = p.file_name().unwrap().to_str().unwrap();
-        let t = getFile_type(d);
-        if d == "index.html"{
-            return String::from("index.html");
-        } else if t == HTML{
-            tmp = d.to_string();
+            let t = getFile_type(d);
+            if d == "index.html"{
+                return String::from("index.html");
+            } else if t == HTML{
+                tmp = d.to_string();
+            }
         }
-    }
     }
     tmp
 }
@@ -186,6 +187,8 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
             // mensagem de erro que não achou um html(diferente de arquivo nao existe)
             status = 404;
             warning("Nenhum Html foi achado");
+            let (header, html) = dir_html(FILE_SOURCE_PATH, status);
+            stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
             // TODO: Ai vai fazer mostrar o html da pagina normal
         }
         // refatorar daqui para baixo
@@ -213,6 +216,9 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
         // fazer response da pagina que seleciona um arquivo
         warning("Pasta requisitada");
         // TODO: mostrar o html da pagina que foi requisitada
+        let(header, html) = dir_html(file_name, status);
+        stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
+
     } else {
         file_not(file_name);
         status = 404;
@@ -263,6 +269,49 @@ fn bad_response_make(status_code: u32) -> (String, String){
     ), Shtml)
 }
 
+fn dir_html(pasta: &str, status_code: u32) -> (String, String){
+    let status_ = header_make(status_code);
+    let code_s = code_to_status(status_code);
+    let mut html_dir = HtmlPage::new();
+    let mut absolute = String::from(FILE_SOURCE_PATH);
+    absolute.push_str(pasta);
+    let dir = fs::read_dir(absolute).unwrap();
+    // compor o html aqui(for pelos itens)
+
+    for i in dir {
+        let p = i.unwrap().path();
+        // html_error.add_link()
+        // if p.is_file(){
+        //     let d = p.file_name().unwrap().to_str().unwrap();
+        //     let t = getFile_type(d);
+        //     if d == "index.html"{
+        //         return String::from("index.html");
+        //     } else if t == HTML{
+        //         tmp = d.to_string();
+        //     }
+        // }
+        let mut Pname = String::from("/");
+        // TODO: ajeitar isso
+        Pname.push_str(pasta);
+        Pname.push_str("/");
+        let arq = p.file_name().unwrap().to_str().unwrap();
+        Pname.push_str(arq);
+        // println!("{:?}", Pname);
+        html_dir.add_link(
+            Pname, arq 
+        ); 
+        html_dir.add_paragraph("");
+    }
+
+
+    let Shtml = html_dir.to_html_string();
+    (format!(
+        "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
+        status_, Shtml.len()
+    ), Shtml)
+
+}
+
 // converter o data_type em Content-Type
 pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
     let extension =  getFile_type(file_name);
@@ -300,8 +349,8 @@ pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
 pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
-        print_rq(&req);
-        match req.method {
+            print_rq(&req);
+            match req.method {
                 GET => {
                     // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
                     let _ = file_sender(stream, &req.required);
