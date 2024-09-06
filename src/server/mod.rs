@@ -187,7 +187,7 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
             // mensagem de erro que não achou um html(diferente de arquivo nao existe)
             status = 404;
             warning("Nenhum Html foi achado");
-            let (header, html) = dir_html(FILE_SOURCE_PATH, status);
+            let (header, html) = dir_html("", status);
             stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
             // TODO: Ai vai fazer mostrar o html da pagina normal
         }
@@ -275,6 +275,7 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     let mut html_dir = HtmlPage::new();
     let mut absolute = String::from(FILE_SOURCE_PATH);
     absolute.push_str(pasta);
+    // println!("{}", absolute);
     let dir = fs::read_dir(absolute).unwrap();
     // compor o html aqui(for pelos itens)
 
@@ -293,7 +294,9 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
         let mut Pname = String::from("/");
         // TODO: ajeitar isso
         Pname.push_str(pasta);
-        Pname.push_str("/");
+        // Pname.push_str("/");
+        // mudar logica, pois o "não achar html", só funciona se isso tiver comentado
+        // abrir outras funciona com isso, abrir arquivos dentro de pastas não gunciona
         let arq = p.file_name().unwrap().to_str().unwrap();
         Pname.push_str(arq);
         // println!("{:?}", Pname);
