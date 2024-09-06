@@ -186,7 +186,7 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
         } else {
             // mensagem de erro que não achou um html(diferente de arquivo nao existe)
             status = 404;
-            warning("Nenhum Html foi achado");
+            warning("Nenhum Html foi achado, mostrando pasta atual");
             let (header, html) = dir_html("", status);
             stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
             // TODO: Ai vai fazer mostrar o html da pagina normal
@@ -214,7 +214,8 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
 
     } else if p.is_dir(){
         // fazer response da pagina que seleciona um arquivo
-        warning("Pasta requisitada");
+        // warning("Pasta requisitada");
+        info(format!("Pasta {} requisitada", file_name).as_str());
         // TODO: mostrar o html da pagina que foi requisitada
         let(header, html) = dir_html(file_name, status);
         stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
@@ -281,20 +282,13 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
 
     for i in dir {
         let p = i.unwrap().path();
-        // html_error.add_link()
-        // if p.is_file(){
-        //     let d = p.file_name().unwrap().to_str().unwrap();
-        //     let t = getFile_type(d);
-        //     if d == "index.html"{
-        //         return String::from("index.html");
-        //     } else if t == HTML{
-        //         tmp = d.to_string();
-        //     }
-        // }
+
         let mut Pname = String::from("/");
         // TODO: ajeitar isso
         Pname.push_str(pasta);
-        // Pname.push_str("/");
+        if pasta.len() > 0{
+            Pname.push_str("/");
+        }
         // mudar logica, pois o "não achar html", só funciona se isso tiver comentado
         // abrir outras funciona com isso, abrir arquivos dentro de pastas não gunciona
         let arq = p.file_name().unwrap().to_str().unwrap();
