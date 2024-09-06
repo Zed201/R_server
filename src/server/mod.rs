@@ -10,7 +10,7 @@ use build_html::{Html, HtmlContainer, HtmlPage};
 mod log;
 use log::*;
 
-static FILE_SOURCE_PATH: &str = "./test_source/";
+static FILE_SOURCE_PATH: &str = "./";
 
 enum httpMet{
     GET,
@@ -30,27 +30,41 @@ enum File_type{
     JSON,
     PDF,
     ICO,
-    DIR
+    DIR,
 }
 
 use File_type::*;
 
 fn getFile_type(file_name: &str) -> File_type{
     // TODO: Ajeitar quando for nome de dir, dando algum erro
-    let extension = Path::new(file_name).extension().unwrap().to_str().unwrap_or_else(|| "");
-    match extension {
-        "txt" => TXT,
-        "html" => HTML,
-        "css" => CSS,
-        "js" => JS,
-        "png" => PNG,
-        "jpeg" => JPEG,
-        "jpg" => JPG,
-        "json" => JSON,
-        "pdf" => PDF,
-        "ico" => ICO,
-        _ => DIR
+    match Path::new(file_name).extension(){
+        Some(extension) =>{
+            match extension.to_str().unwrap() {
+                "txt" => TXT,
+                "html" => HTML,
+                "css" => CSS,
+                "js" => JS,
+                "png" => PNG,
+                "jpeg" => JPEG,
+                "jpg" => JPG,
+                "json" => JSON,
+                "pdf" => PDF,
+                "ico" => ICO,
+                _ => DIR
+            }
+
+        },
+        None =>{
+            if file_name.contains("."){
+                // arquivo hidden
+                return TXT;
+            } else {
+                return DIR;
+            }
+
+        }
     }
+
 }
 
 use httpMet::*;
