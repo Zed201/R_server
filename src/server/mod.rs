@@ -1,7 +1,5 @@
 use core::fmt;
-use std::fs::ReadDir;
 use std::io::{prelude::*, BufReader};
-use std::task::Context;
 use std::{fs, usize};
 use std::net::TcpStream;
 use std::path::{Path};
@@ -12,14 +10,14 @@ use log::*;
 
 static FILE_SOURCE_PATH: &str = "./";
 
-enum httpMet{
+enum HttpMet{
     GET,
     POST,
 }
 
 // não so de file, mas o dir entra para compor o tipo de dado
 #[derive(PartialEq)]
-enum File_type{
+enum FileType{
     TXT,
     HTML,
     CSS,
@@ -33,9 +31,9 @@ enum File_type{
     DIR,
 }
 
-use File_type::*;
+use FileType::*;
 
-fn getFile_type(file_name: &str) -> File_type{
+fn get_file_type(file_name: &str) -> FileType{
     // TODO: Ajeitar quando for nome de dir, dando algum erro
     match Path::new(file_name).extension(){
         Some(extension) =>{
@@ -67,9 +65,9 @@ fn getFile_type(file_name: &str) -> File_type{
 
 }
 
-use httpMet::*;
+use HttpMet::*;
 
-impl fmt::Display for httpMet{
+impl fmt::Display for HttpMet{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             GET => write!(f, "GET"),
@@ -78,14 +76,7 @@ impl fmt::Display for httpMet{
     }
 }
 
-fn httpM_toStr(method: httpMet) -> String{
-    match method {
-        GET => String::from("GET"),
-        POST => String::from("POST"),
-    }
-}
-
-fn httpM_fromStr(method: &str) -> httpMet{
+fn http_mfrom_str(method: &str) -> HttpMet{
     match method {
         "GET" => GET,
         "POST" => POST,
@@ -94,8 +85,8 @@ fn httpM_fromStr(method: &str) -> httpMet{
 }
 
 struct Request{
-    method: httpMet,
-    Host: String,
+    method: HttpMet,
+    // Host: String,
     required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
 }
 
@@ -107,8 +98,8 @@ impl Request{
         }
         // TODO: Erro de index out of the bound aqui(não é sempre que acontece, ele fala de erro no index 0)
         let uri: Vec<&str> = request[0].split(" ").collect(); // !
-        let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string(); // ! aqui
-        let r = Request {method: httpM_fromStr(&uri[0]), Host, required: uri[1][1..].to_string()}; // !
+        // let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string(); // ! aqui
+        let r = Request {method: http_mfrom_str(&uri[0]), required: uri[1][1..].to_string()}; // !
         Ok(r)
     }
 }
@@ -170,7 +161,7 @@ fn search_index() -> String{
         let p = i.unwrap().path();
         if p.is_file(){
             let d = p.file_name().unwrap().to_str().unwrap();
-            let t = getFile_type(d);
+            let t = get_file_type(d);
             if d == "index.html"{
                 return String::from("index.html");
             } else if t == HTML{
@@ -209,7 +200,7 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
     } else if p.is_file() { 
         // mensagem de erro para caso não ache o arquivo em si(ta bugando tudo)
         // talvez usar o Path, ele retorna um erro caso o arquivo não exista
-        match getFile_type(file_name) {
+        match get_file_type(file_name) {
             TXT | HTML | CSS | JS | JSON => {
                 let content = read_file_text(file_name).unwrap(); // talvez um panic aqui
                 let response = format!(
@@ -277,16 +268,15 @@ fn bad_response_make(status_code: u32) -> (String, String){
         .with_title(&code_s)
         .with_header(1, &code_s)
         .with_paragraph("The requested resource could not be found on this server.");
-    let Shtml = html_error.to_html_string();
+    let shtml = html_error.to_html_string();
     (format!(
         "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
-        status_, Shtml.len()
-    ), Shtml)
+        status_, shtml.len()
+    ), shtml)
 }
 
 fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     let status_ = header_make(status_code);
-    let code_s = code_to_status(status_code);
     let mut html_dir = HtmlPage::new();
     let mut absolute = String::from(FILE_SOURCE_PATH);
     absolute.push_str(pasta);
@@ -297,35 +287,35 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     for i in dir {
         let p = i.unwrap().path();
 
-        let mut Pname = String::from("/");
+        let mut pname = String::from("/");
         // TODO: ajeitar isso
-        Pname.push_str(pasta);
+        pname.push_str(pasta);
         if pasta.len() > 0{
-            Pname.push_str("/");
+            pname.push_str("/");
         }
         // mudar logica, pois o "não achar html", só funciona se isso tiver comentado
         // abrir outras funciona com isso, abrir arquivos dentro de pastas não gunciona
         let arq = p.file_name().unwrap().to_str().unwrap();
-        Pname.push_str(arq);
-        // println!("{:?}", Pname);
+        pname.push_str(arq);
+        // println!("{:?}", pname);
         html_dir.add_link(
-            Pname, arq 
+            pname, arq 
         ); 
         html_dir.add_paragraph("");
     }
 
 
-    let Shtml = html_dir.to_html_string();
+    let shtml = html_dir.to_html_string();
     (format!(
         "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
-        status_, Shtml.len()
-    ), Shtml)
+        status_, shtml.len()
+    ), shtml)
 
 }
 
 // converter o data_type em Content-Type
 pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
-    let extension =  getFile_type(file_name);
+    let extension =  get_file_type(file_name);
     match extension {
         TXT => "text/plain\r\n",
         HTML => "text/html\r\n",

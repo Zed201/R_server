@@ -1,6 +1,6 @@
 use super::{Request};
 
-use colored::{Colorize, Color::*, Color, ColoredString};
+use colored::Colorize;
 use chrono::Local;
 
 pub fn info(s: &str){
