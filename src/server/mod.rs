@@ -8,7 +8,7 @@ use build_html::{Html, HtmlContainer, HtmlPage};
 mod log;
 use log::*;
 
-static FILE_SOURCE_PATH: &str = "./";
+static FILE_SOURCE_PATH: &str = "./test_source/";
 
 enum HttpMet{
     GET,
@@ -355,6 +355,7 @@ pub fn handle_con(stream: &mut TcpStream) {
                 GET => {
                     // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
                     let _ = file_sender(stream, &req.required);
+
                 },
                 POST =>{
                     // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
