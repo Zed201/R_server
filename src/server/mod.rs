@@ -1,7 +1,7 @@
 use core::fmt;
 use std::io::{prelude::*, BufReader};
 use std::{fs, usize};
-use std::net::TcpStream;
+use std::net::{TcpStream, Shutdown};
 use std::path::{Path};
 use build_html::{Html, HtmlContainer, HtmlPage};
 
@@ -371,6 +371,7 @@ pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
             print_rq(&req);
+            println!("---");
             // println!("{}", req);
             match req.method {
                 GET => {
@@ -382,10 +383,11 @@ pub fn handle_con(stream: &mut TcpStream) {
                     // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
                 },
                 END =>{
-                    // info("Desligando");
+                    info("Desligando");
                     let _ = file_sender(stream, &req.required);
                 }
             };
+            
         },
         Err(s) => {
             warning(&s);

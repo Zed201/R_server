@@ -23,7 +23,7 @@ fn main() {
     let ip_porta = format!("127.0.0.1:{}", &args[1]);
     let running = Arc::new(AtomicBool::new(true));
     let r = Arc::clone(&running);
-    let pool = ThreadPool::new(10);
+    // let pool = ThreadPool::new(10);
     let _ = ctrlc::set_handler(move || {
         r.store(false, SeqCst);
         let _ = Command::new("curl")
@@ -43,8 +43,10 @@ fn main() {
     while running.load(SeqCst) {
         match lister.accept(){
             Ok((mut s, _)) => {
-                // handle_con(&mut s);
-                pool.execute(move || handle_con(&mut s));
+                // println!("----");
+                handle_con(&mut s);
+                s.shutdown(Shutdown::Both).expect("Erro ao fechar conexão");
+                
             },
             _ => {
                 // nada
