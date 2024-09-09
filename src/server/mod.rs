@@ -44,7 +44,6 @@ pub fn code_to_status(code: u32) -> String {
     }
 }
 
-// não so de file, mas o dir entra para compor o tipo de dado
 #[derive(PartialEq)]
 enum FileType{
     TXT,
@@ -100,24 +99,22 @@ impl fmt::Display for FileType {
             HTML => write!(f, "text/html\r\n"),
             CSS => write!(f, "text/css\r\n"),
             JS => write!(f, " text/javascript\r\n"),
-            PNG | JPEG | JPG => write!(f, "image/png\r\n"), // completar com os outros tipo)s
+            PNG | JPEG | JPG => write!(f, "image/png\r\n"), 
             JSON => write!(f, "application/json\r\n"),
             PDF => write!(f, "application/pdf\r\n"),
             ICO => write!(f, "image/x-icon\r\n"),
-            _ => write!(f, "text/html\r\n"), // modficar para ser o de di)r
+            _ => write!(f, "text/html\r\n"),
         }
     }
 }
 
 pub struct Request{
     method: HttpMet,
-    // Host: String,
-    // User: String,
     required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
 }
 
 impl Request{
-    // TODO: Ajustar para ler pegar melhor a req, usar melhor o request, 
+    // TODO: Ajustar para ler pegar melhor a req, usar melhor o request(se for precisar ler mais coisa da requisição), 
     // talvez usar um type pois ele seria só um HashMap<String, String>, ou modificar apenas a
     // struct, mas aí ia ter de modificar todo o resto, onde ele é acessado
     fn new(stream: &mut TcpStream) -> Result<Request, String>{
@@ -137,7 +134,6 @@ impl fmt::Display for Request {
         }
     }
 }
-
 
 pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
     let mut buffer = BufReader::new(stream);
@@ -227,10 +223,8 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
             let (header, html) = dir_html("", status);
             stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
         }
-        // refatorar daqui para baixo
+
     } else if p.is_file() { 
-        // mensagem de erro para caso não ache o arquivo em si(ta bugando tudo)
-        // talvez usar o Path, ele retorna um erro caso o arquivo não exista
         match get_file_type(file_name) {
             TXT | HTML | CSS | JS | JSON => {
                 let content = read_file_text(file_name).unwrap(); // talvez um panic aqui
@@ -250,8 +244,6 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
         }
 
     } else if p.is_dir(){
-        // fazer response da pagina que seleciona um arquivo
-        // warning("Pasta requisitada");
         info(format!("Pasta {} requisitada", file_name).as_str());
         let(header, html) = dir_html(file_name, status);
         stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
@@ -281,9 +273,7 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     let mut html_dir = HtmlPage::new();
     let mut absolute = String::from(FILE_SOURCE_PATH);
     absolute.push_str(pasta);
-    // println!("{}", absolute);
     let dir = fs::read_dir(absolute).unwrap();
-    // compor o html aqui(for pelos itens)
 
     for i in dir {
         let p = i.unwrap().path();
@@ -298,7 +288,6 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
         // abrir outras funciona com isso, abrir arquivos dentro de pastas não gunciona
         let arq = p.file_name().unwrap().to_str().unwrap();
         pname.push_str(arq);
-        // println!("{:?}", pname);
         html_dir.add_link(
             pname, arq 
         ); 
@@ -315,8 +304,6 @@ pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
             print_rq(&req);
-            // println!("---");
-            // println!("{}", req);
             match req.method {
                 GET => {
                     // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
@@ -324,7 +311,7 @@ pub fn handle_con(stream: &mut TcpStream) {
 
                 },
                 POST => {
-                    // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
+                    // TODO: implementar para mostrar os dados no terminal, basicamente(colocar os dados no ENUM de post) 
                 },
             };
             
