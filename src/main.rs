@@ -1,4 +1,4 @@
-use std::{net::{TcpListener, Shutdown}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}, thread};
+use std::{net::{Shutdown, TcpListener}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}};
 use std::env;
 mod threadpool;
 use threadpool::*;
@@ -6,14 +6,9 @@ use threadpool::*;
 mod server;
 use server::*;
 
-use std::io::{prelude::*, BufReader};
-use std::process::Command;
-
-use std::collections::HashMap;
-// use std::sync::{atomic::{AtomicBool, Ordering::SeqCst}};
+use std::io::{prelude::*};
 use ctrlc;
-// use std::thread;
-use std::time::Duration;
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -21,12 +16,15 @@ fn main() {
         panic!("Porta não informada");
     }
     let ip_porta = format!("127.0.0.1:{}", &args[1]);
+    
     let running = Arc::new(AtomicBool::new(true));
     let r = Arc::clone(&running);
-    let pool = ThreadPool::new(10);
+    let pool = Arc::new(ThreadPool::new(10));
+    let p = Arc::clone(&pool);
+
     let _ = ctrlc::set_handler(move || {
+        p.finish();
         r.store(false, SeqCst);
-        
     });
 
     let lister = Arc::new(TcpListener::bind(ip_porta.clone()).expect("Não conseguiu criar o socket na porta escolhida\n")); 

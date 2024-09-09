@@ -100,10 +100,13 @@ impl Request{
     fn new(stream: &mut TcpStream) -> Result<Request, String>{
         let request = read_req(stream);
         let mut met =  http_mfrom_str(request["method"].as_str());
-        if request["User-Agent"] == "END" {
-            met = END;
+        match request.get("User-Agent") {
+            Some(r) if r == "END" => {
+                met = END;
+            }
+            _ => {/**/}
         }
-        let r = Request {method: met, required: request["required"].clone()}; // !
+        let r = Request {method: met, required: request["required"].clone()};
         Ok(r)
     }
 }

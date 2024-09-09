@@ -29,6 +29,7 @@ impl Worker {
 pub struct ThreadPool {
     threads: Vec<Worker>,
     sender: Option<mpsc::Sender<Job>>,
+
 }
 
 impl ThreadPool {
@@ -58,6 +59,16 @@ impl ThreadPool {
             l.send(job).unwrap();
         }
     }
+
+    pub fn finish(&self){
+        for i in 0..self.threads.len(){
+            if let Some(l) = self.sender.as_ref() {
+                let _ = l.send(Box::new(|| {}));
+            }
+        }
+    }
+
+    
 }
 
 impl Drop for ThreadPool {
@@ -65,7 +76,7 @@ impl Drop for ThreadPool {
         drop(self.sender.take());
         for worker in &mut self.threads {
             if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap();
+                thread.join().unwrap(); // !erro aqui
             }
         }
     }
