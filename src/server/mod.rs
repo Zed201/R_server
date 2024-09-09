@@ -1,5 +1,6 @@
 use core::fmt;
 use std::io::{prelude::*, BufReader};
+use std::os::linux::raw::stat;
 use std::{fs, usize};
 use std::net::TcpStream;
 use std::path::Path;
@@ -92,18 +93,19 @@ fn get_file_type(file_name: &str) -> FileType{
 
 }
 
-pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
-    let extension =  get_file_type(file_name);
-    match extension {
-        TXT => "text/plain\r\n",
-        HTML => "text/html\r\n",
-        CSS => "text/css\r\n",
-        JS => " text/javascript\r\n",
-        PNG | JPEG | JPG => "image/png\r\n", // completar com os outros tipos
-        JSON => "application/json\r\n",
-        PDF => "application/pdf\r\n",
-        ICO => "image/x-icon\r\n",
-        _ => "text/plain\r\n", // modficar para ser o de dir
+impl fmt::Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TXT => write!(f, "text/plain\r\n"),
+            HTML => write!(f, "text/html\r\n"),
+            CSS => write!(f, "text/css\r\n"),
+            JS => write!(f, " text/javascript\r\n"),
+            PNG | JPEG | JPG => write!(f, "image/png\r\n"), // completar com os outros tipo)s
+            JSON => write!(f, "application/json\r\n"),
+            PDF => write!(f, "application/pdf\r\n"),
+            ICO => write!(f, "image/x-icon\r\n"),
+            _ => write!(f, "text/html\r\n"), // modficar para ser o de di)r
+        }
     }
 }
 
@@ -161,8 +163,8 @@ pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
 }
 
 
-pub fn header_make(status_code: u32) -> String {
-    format!("HTTP/1.1 {}", code_to_status(status_code))
+pub fn header_make(status_code: u32, cont_type: FileType, len: usize) -> String {
+    format!("HTTP/1.1 {}\r\nContent-Type: {}Content-Length: {}\r\n\r\n", code_to_status(status_code), cont_type, len)
 }
 
 pub fn read_file_text(file_name: &str) -> Result<String, String>{   
@@ -214,7 +216,8 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
             let content = read_file_text(&f).unwrap();
             let response = format!(
                 "{}{}",
-                good_response_make(&f, status, content.len()), content
+                header_make(status, get_file_type(file_name), content.len()), 
+                content
             );
             stream.write(response.as_bytes()).unwrap();
         } else {
@@ -233,14 +236,15 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
                 let content = read_file_text(file_name).unwrap(); // talvez um panic aqui
                 let response = format!(
                     "{}{}",
-                    good_response_make(file_name, status, content.len()), content
+                    header_make(status, get_file_type(file_name), content.len()),
+                    content
                 );
                 stream.write(response.as_bytes()).unwrap();
             },
             _ => {
                 let content = read_file_bytes(file_name).unwrap();
-                let response = good_response_make(file_name, status, content.len());
-                stream.write(response.as_bytes()).unwrap();
+                let header = header_make(status, get_file_type(file_name), content.len());
+                stream.write(header.as_bytes()).unwrap();
                 stream.write(&content).unwrap();
             }
         }
@@ -261,35 +265,19 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
     // caso seja uma imagem ou coisa parecida
 }
 
-pub fn good_response_make(file_send: &str, status_code: u32, content_len: usize) -> String {
-    let status_ = header_make(status_code);
-
-    let response = format!(
-        "{}\r\nContent-Type: {}Content-Length: {}\r\n\r\n",
-        status_, cont_type(file_send), content_len
-    ); // depois desse texto é só colocar o content caso for de texte e caso não só manda os bytes dps
-    response
-}
-
 fn bad_response_make(status_code: u32) -> (String, String){
     // usando a crate build_html só para facilitar
-    let status_ = header_make(status_code);
     let code_s = code_to_status(status_code);
     let html_error = HtmlPage::new()
         .with_title(&code_s)
         .with_header(1, &code_s)
         .with_paragraph("The requested resource could not be found on this server.");
     let shtml = html_error.to_html_string();
-    (format!(
-        "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
-        status_, shtml.len()
-    ), shtml)
+    (header_make(status_code, HTML, shtml.len()), shtml)
 }
 
 
-
 fn dir_html(pasta: &str, status_code: u32) -> (String, String){
-    let status_ = header_make(status_code);
     let mut html_dir = HtmlPage::new();
     let mut absolute = String::from(FILE_SOURCE_PATH);
     absolute.push_str(pasta);
@@ -319,10 +307,7 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
 
 
     let shtml = html_dir.to_html_string();
-    (format!(
-        "{}\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
-        status_, shtml.len()
-    ), shtml)
+    (header_make(status_code, HTML, shtml.len()), shtml)
 
 }
 
