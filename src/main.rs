@@ -1,4 +1,4 @@
-use std::{net::TcpListener, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}, thread};
+use std::{net::{TcpListener, Shutdown}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}, thread};
 use std::env;
 mod threadpool;
 use threadpool::*;
@@ -23,34 +23,32 @@ fn main() {
     let ip_porta = format!("127.0.0.1:{}", &args[1]);
     let running = Arc::new(AtomicBool::new(true));
     let r = Arc::clone(&running);
-    // let pool = ThreadPool::new(10);
+    let pool = ThreadPool::new(10);
     let _ = ctrlc::set_handler(move || {
         r.store(false, SeqCst);
-        let _ = Command::new("curl")
-            .arg("-A")
-            .arg("END")
-            .arg("localhost:8000")
-            .output()
-            .expect("Deu ruim ao executar o curl"); // envia uma requisição
-        println!("Já foi");
+        
     });
 
-    let lister = TcpListener::bind(ip_porta.clone()).expect("Não conseguiu criar o socket na porta escolhida\n"); 
+    let lister = Arc::new(TcpListener::bind(ip_porta.clone()).expect("Não conseguiu criar o socket na porta escolhida\n")); 
     lister.set_nonblocking(true).unwrap();
-    // alguma coisa de pausa de thread ta acontecendo por aqui, pois sem o threadpool o 
-    // curl para de pegar apos ter alguma requisição do navegador normal, mas e nao tiver nenhuma
-    // ele funciona normal para liberar memóri
+
+    // 1 thread para lidar com cada requisição, provavelmente cada thread está tendo algum leak, mas o programa sai certinho(! dps de um tempo mas sai)
+    // TODO: Ou as vzes ele não vai depois de muitas requisições
+    // TODO: Testar memory leak com valgrind
     while running.load(SeqCst) {
-        match lister.accept(){
-            Ok((mut s, _)) => {
-                // println!("----");
-                handle_con(&mut s);
-                s.shutdown(Shutdown::Both).expect("Erro ao fechar conexão");
-                
-            },
-            _ => {
-                // nada
+        let l = lister.clone();
+        pool.execute(move || {
+            match l.accept(){
+                Ok((mut s, _)) => {
+                    handle_con(&mut s);
+                    s.flush().unwrap();
+                    s.shutdown(Shutdown::Both).expect("Erro ao fechar conexão");
+                },
+                _ => {
+                    // nada
+                }
             }
-        }
+        });
+        
     }
 }

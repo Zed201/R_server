@@ -35,7 +35,6 @@ enum FileType{
 use FileType::*;
 
 fn get_file_type(file_name: &str) -> FileType{
-    // TODO: Ajeitar quando for nome de dir, dando algum erro
     match Path::new(file_name).extension(){
         Some(extension) =>{
             match extension.to_str().unwrap() {
@@ -138,9 +137,10 @@ pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
             (String::new(), String::new()) 
         })
         .collect();
-        let uri: Vec<&str> = f.split(" ").collect();
-    mapa.insert("method".to_string(), uri[0].to_string());
-    mapa.insert("required".to_string(), uri[1][1..].to_string()); // deu erro aqui
+    let uri: Vec<&str> = f.split(" ").collect();
+    // tratado de forma meio porca mais 
+    mapa.insert("method".to_string(), uri.get(0).unwrap_or_else(|| &" ").to_string());
+    mapa.insert("required".to_string(), uri.get(1).unwrap_or_else(|| &" ")[1..].to_string());
     mapa
 }
 
@@ -214,7 +214,6 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
             warning("Nenhum Html foi achado, mostrando pasta atual");
             let (header, html) = dir_html("", status);
             stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
-            // TODO: Ai vai fazer mostrar o html da pagina normal
         }
         // refatorar daqui para baixo
     } else if p.is_file() { 
@@ -241,7 +240,6 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
         // fazer response da pagina que seleciona um arquivo
         // warning("Pasta requisitada");
         info(format!("Pasta {} requisitada", file_name).as_str());
-        // TODO: mostrar o html da pagina que foi requisitada
         let(header, html) = dir_html(file_name, status);
         stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
 
@@ -295,6 +293,8 @@ fn bad_response_make(status_code: u32) -> (String, String){
     ), shtml)
 }
 
+
+
 fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     let status_ = header_make(status_code);
     let mut html_dir = HtmlPage::new();
@@ -308,7 +308,7 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
         let p = i.unwrap().path();
 
         let mut pname = String::from("/");
-        // TODO: ajeitar isso
+        // TODO: melhorar isso, em questão de desempenho
         pname.push_str(pasta);
         if pasta.len() > 0{
             pname.push_str("/");
@@ -371,7 +371,7 @@ pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
             print_rq(&req);
-            println!("---");
+            // println!("---");
             // println!("{}", req);
             match req.method {
                 GET => {
