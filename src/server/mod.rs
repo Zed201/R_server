@@ -13,6 +13,7 @@ static FILE_SOURCE_PATH: &str = "./test_source/";
 enum HttpMet{
     GET,
     POST,
+    END
 }
 
 // não so de file, mas o dir entra para compor o tipo de dado
@@ -72,6 +73,7 @@ impl fmt::Display for HttpMet{
         match *self {
             GET => write!(f, "GET"),
             POST => write!(f, "POST"),
+            END => write!(f, "END")
         }
     }
 }
@@ -80,6 +82,7 @@ fn http_mfrom_str(method: &str) -> HttpMet{
     match method {
         "GET" => GET,
         "POST" => POST,
+        "END" => END,
         _ => GET
     }
 }
@@ -87,19 +90,21 @@ fn http_mfrom_str(method: &str) -> HttpMet{
 struct Request{
     method: HttpMet,
     // Host: String,
+    // User: String,
     required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
 }
 
 impl Request{
+    // TODO: Ajustar para ler pegar melhor a req, usar melhor o request, 
+    // talvez usar um type pois ele seria só um HashMap<String, String>, ou modificar apenas a
+    // struct, mas aí ia ter de modificar todo o resto, onde ele é acessado
     fn new(stream: &mut TcpStream) -> Result<Request, String>{
         let request = read_req(stream);
-        if request.len() < 2{
-            return Err(String::from("Erro ao ler o request"));
+        let mut met =  http_mfrom_str(request["method"].as_str());
+        if request["User-Agent"] == "END" {
+            met = END;
         }
-        // TODO: Erro de index out of the bound aqui(não é sempre que acontece, ele fala de erro no index 0)
-        let uri: Vec<&str> = request[0].split(" ").collect(); // !
-        // let Host = request[1].split(" ").collect::<Vec<_>>()[1].to_string(); // ! aqui
-        let r = Request {method: http_mfrom_str(&uri[0]), required: uri[1][1..].to_string()}; // !
+        let r = Request {method: met, required: request["required"].clone()}; // !
         Ok(r)
     }
 }
@@ -114,14 +119,29 @@ impl fmt::Display for Request {
     }
 }
 
-pub fn read_req(stream: &mut TcpStream) -> Vec<String> {
-    let buffer = BufReader::new(stream);
-    let request: Vec<String> = buffer
+
+use std::collections::HashMap;
+
+pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
+    let mut buffer = BufReader::new(stream);
+    let mut f = String::new();
+    let _ = buffer.read_line(&mut f).expect("Erro ao ler o método da requisição");
+    let mut mapa: HashMap<String, String> = buffer
         .lines()
         .map(|result| result.unwrap())
         .take_while(|linha| !linha.is_empty())
+        .map(|linha| {
+            let mut s = linha.split(": ");
+            if let (Some(key), Some(value)) = (s.next(), s.next()) {
+                return (key.to_string(), value.to_string())
+            }
+            (String::new(), String::new()) 
+        })
         .collect();
-    request
+        let uri: Vec<&str> = f.split(" ").collect();
+    mapa.insert("method".to_string(), uri[0].to_string());
+    mapa.insert("required".to_string(), uri[1][1..].to_string()); // deu erro aqui
+    mapa
 }
 
 pub fn code_to_status(code: u32) -> String {
@@ -351,15 +371,20 @@ pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
             print_rq(&req);
+            // println!("{}", req);
             match req.method {
                 GET => {
                     // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
                     let _ = file_sender(stream, &req.required);
 
                 },
-                POST =>{
+                POST => {
                     // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
                 },
+                END =>{
+                    // info("Desligando");
+                    let _ = file_sender(stream, &req.required);
+                }
             };
         },
         Err(s) => {

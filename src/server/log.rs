@@ -1,4 +1,4 @@
-use super::{Request};
+use super::{Request, HttpMet::*};
 
 use colored::Colorize;
 use chrono::Local;
@@ -13,7 +13,14 @@ pub fn info(s: &str){
 }
 
 pub fn print_rq(r: &Request){
-   info(format!("{}", r).as_str());
+    match r.method {
+        END =>{
+            warning("Desligando");
+        }
+        _ =>{
+            info(format!("{}", r).as_str());
+        }
+    }
 }
 
 pub fn warning(s: &str){
