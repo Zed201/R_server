@@ -1,5 +1,5 @@
 [package]
-name = "rust_server"
+name = "R_server"
 version = "1.0.0"
 edition = "2021"
 

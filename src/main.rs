@@ -1,4 +1,4 @@
-use std::{net::{Shutdown, TcpListener}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}};
+use std::{net::{Shutdown, TcpListener}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}, thread, time::Duration};
 use std::env;
 mod threadpool;
 use threadpool::*;
@@ -25,6 +25,13 @@ fn main() {
         p.finish();
         r.store(false, SeqCst);
     });
+
+    // for time test
+    // let _ = thread::spawn(move || {
+    //     thread::sleep(Duration::from_secs(10));
+    //     p.finish();
+    //     r.store(false, SeqCst);
+    // });
 
     let lister = Arc::new(TcpListener::bind(ip_porta.clone()).expect("Não conseguiu criar o socket na porta escolhida\n")); 
     lister.set_nonblocking(true).unwrap();
