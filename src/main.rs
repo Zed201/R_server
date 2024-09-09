@@ -4,9 +4,8 @@ mod threadpool;
 use threadpool::*;
 
 mod server;
-use server::*;
+use server::{*, log::*};
 
-use std::io::{prelude::*};
 use ctrlc;
 
 
@@ -39,7 +38,7 @@ fn main() {
             match l.accept(){
                 Ok((mut s, _)) => {
                     handle_con(&mut s);
-                    s.flush().unwrap();
+                    
                     s.shutdown(Shutdown::Both).expect("Erro ao fechar conexão");
                 },
                 _ => {
@@ -49,4 +48,5 @@ fn main() {
         });
         
     }
+    shutdown();
 }

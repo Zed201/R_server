@@ -60,8 +60,9 @@ impl ThreadPool {
         }
     }
 
+    // basicamente para quanod ele for terminar ele "limpar" todas as threas 
     pub fn finish(&self){
-        for i in 0..self.threads.len(){
+        for _i in 0..self.threads.len(){
             if let Some(l) = self.sender.as_ref() {
                 let _ = l.send(Box::new(|| {}));
             }

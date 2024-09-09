@@ -1,4 +1,4 @@
-use super::{Request, HttpMet::*};
+use super::Request;
 
 use colored::Colorize;
 use chrono::Local;
@@ -13,14 +13,7 @@ pub fn info(s: &str){
 }
 
 pub fn print_rq(r: &Request){
-    match r.method {
-        END =>{
-            warning("Desligando");
-        }
-        _ =>{
-            info(format!("{}", r).as_str());
-        }
-    }
+         info(format!("{}", r).as_str());
 }
 
 pub fn warning(s: &str){
@@ -35,4 +28,13 @@ pub fn warning(s: &str){
 pub fn file_not(s: &str){
     let s = s.white();
     warning(&format!("Arquivo {} não achado", s).red().to_string());
+}
+
+pub fn shutdown(){
+    let n = Local::now();
+    println!(
+        "{}: {}",
+        format!("[WARNING {}]", n.format("%H:%M:%S")).red(),
+        "DESLIGANDO".bright_red()
+    );
 }

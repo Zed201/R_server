@@ -1,11 +1,11 @@
 use core::fmt;
 use std::io::{prelude::*, BufReader};
 use std::{fs, usize};
-use std::net::{TcpStream, Shutdown};
-use std::path::{Path};
+use std::net::TcpStream;
+use std::path::Path;
 use build_html::{Html, HtmlContainer, HtmlPage};
 
-mod log;
+pub mod log;
 use log::*;
 
 static FILE_SOURCE_PATH: &str = "./test_source/";
@@ -13,7 +13,6 @@ static FILE_SOURCE_PATH: &str = "./test_source/";
 enum HttpMet{
     GET,
     POST,
-    END
 }
 
 // não so de file, mas o dir entra para compor o tipo de dado
@@ -72,7 +71,6 @@ impl fmt::Display for HttpMet{
         match *self {
             GET => write!(f, "GET"),
             POST => write!(f, "POST"),
-            END => write!(f, "END")
         }
     }
 }
@@ -81,12 +79,11 @@ fn http_mfrom_str(method: &str) -> HttpMet{
     match method {
         "GET" => GET,
         "POST" => POST,
-        "END" => END,
         _ => GET
     }
 }
 
-struct Request{
+pub struct Request{
     method: HttpMet,
     // Host: String,
     // User: String,
@@ -99,14 +96,8 @@ impl Request{
     // struct, mas aí ia ter de modificar todo o resto, onde ele é acessado
     fn new(stream: &mut TcpStream) -> Result<Request, String>{
         let request = read_req(stream);
-        let mut met =  http_mfrom_str(request["method"].as_str());
-        match request.get("User-Agent") {
-            Some(r) if r == "END" => {
-                met = END;
-            }
-            _ => {/**/}
-        }
-        let r = Request {method: met, required: request["required"].clone()};
+        let r = String::from("GET");
+        let r = Request {method: http_mfrom_str(request.get("User-Agent").unwrap_or_else(|| &r)), required: request["required"].clone()};
         Ok(r)
     }
 }
@@ -385,10 +376,6 @@ pub fn handle_con(stream: &mut TcpStream) {
                 POST => {
                     // implementar para mostrar os dados na tela, basicamente(colocar os dados no ENUM de post) 
                 },
-                END =>{
-                    info("Desligando");
-                    let _ = file_sender(stream, &req.required);
-                }
             };
             
         },
