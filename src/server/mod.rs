@@ -3,16 +3,44 @@ use std::io::{prelude::*, BufReader};
 use std::{fs, usize};
 use std::net::TcpStream;
 use std::path::Path;
+use std::collections::HashMap;
+
 use build_html::{Html, HtmlContainer, HtmlPage};
 
 pub mod log;
 use log::*;
 
 static FILE_SOURCE_PATH: &str = "./test_source/";
-
 enum HttpMet{
     GET,
     POST,
+}
+
+use HttpMet::*;
+
+fn http_mfrom_str(method: &str) -> HttpMet{
+    match method {
+        "GET" => GET,
+        "POST" => POST,
+        _ => GET
+    }
+}
+
+impl fmt::Display for HttpMet{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            GET => write!(f, "GET"),
+            POST => write!(f, "POST"),
+        }
+    }
+}
+
+pub fn code_to_status(code: u32) -> String {
+    match code {
+        200 => String::from("200 OK"),
+        404 => String::from("404 NOT FOUND"),
+        _ => String::from("200 Ok"),
+    }
 }
 
 // não so de file, mas o dir entra para compor o tipo de dado
@@ -64,22 +92,18 @@ fn get_file_type(file_name: &str) -> FileType{
 
 }
 
-use HttpMet::*;
-
-impl fmt::Display for HttpMet{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            GET => write!(f, "GET"),
-            POST => write!(f, "POST"),
-        }
-    }
-}
-
-fn http_mfrom_str(method: &str) -> HttpMet{
-    match method {
-        "GET" => GET,
-        "POST" => POST,
-        _ => GET
+pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
+    let extension =  get_file_type(file_name);
+    match extension {
+        TXT => "text/plain\r\n",
+        HTML => "text/html\r\n",
+        CSS => "text/css\r\n",
+        JS => " text/javascript\r\n",
+        PNG | JPEG | JPG => "image/png\r\n", // completar com os outros tipos
+        JSON => "application/json\r\n",
+        PDF => "application/pdf\r\n",
+        ICO => "image/x-icon\r\n",
+        _ => "text/plain\r\n", // modficar para ser o de dir
     }
 }
 
@@ -113,8 +137,6 @@ impl fmt::Display for Request {
 }
 
 
-use std::collections::HashMap;
-
 pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
     let mut buffer = BufReader::new(stream);
     let mut f = String::new();
@@ -138,13 +160,6 @@ pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
     mapa
 }
 
-pub fn code_to_status(code: u32) -> String {
-    match code {
-        200 => String::from("200 OK"),
-        404 => String::from("404 NOT FOUND"),
-        _ => String::from("200 Ok"),
-    }
-}
 
 pub fn header_make(status_code: u32) -> String {
     format!("HTTP/1.1 {}", code_to_status(status_code))
@@ -246,8 +261,6 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str){
     // caso seja uma imagem ou coisa parecida
 }
 
-// ExactSizeIterator é para usa o métood len
-// T: Sized + ExactSizeIterator
 pub fn good_response_make(file_send: &str, status_code: u32, content_len: usize) -> String {
     let status_ = header_make(status_code);
 
@@ -257,21 +270,7 @@ pub fn good_response_make(file_send: &str, status_code: u32, content_len: usize)
     ); // depois desse texto é só colocar o content caso for de texte e caso não só manda os bytes dps
     response
 }
-/////////////////////////////////////////////////
-// HTTP/1.1 404 Not Found
-// Content-Type: text/html; charset=UTF-8
-// Content-Length: 123
 
-// <html>
-// <head>
-//     <title>404 Not Found</title>
-// </head>
-// <body>
-//     <h1>404 Not Found</h1>
-//     <p>The requested resource could not be found on this server.</p>
-// </body>
-// </html>
-///////////////////////////////////
 fn bad_response_make(status_code: u32) -> (String, String){
     // usando a crate build_html só para facilitar
     let status_ = header_make(status_code);
@@ -326,40 +325,6 @@ fn dir_html(pasta: &str, status_code: u32) -> (String, String){
     ), shtml)
 
 }
-
-// converter o data_type em Content-Type
-pub fn cont_type<'a>(file_name: &'a str) -> &'a str {
-    let extension =  get_file_type(file_name);
-    match extension {
-        TXT => "text/plain\r\n",
-        HTML => "text/html\r\n",
-        CSS => "text/css\r\n",
-        JS => " text/javascript\r\n",
-        PNG | JPEG | JPG => "image/png\r\n", // completar com os outros tipos
-        JSON => "application/json\r\n",
-        PDF => "application/pdf\r\n",
-        ICO => "image/x-icon\r\n",
-        _ => "text/plain\r\n", // modficar para ser o de dir
-    }
-}
-
-
-///////////////////////////////////////
-/// A estrutura básica da resposta do http é 
-/// HTTP/1.1 (code_status) (code_msg)[X]
-/// Content-Type: (Tipo de conteudo);
-/// <body> EM BYTES ou não
-///////////////////////////////////////
-/// (Tipo de conteudo)(final com \r\n)
-/// text/javascript
-/// text/css
-/// text/html
-/// text/plain
-/// image/x-icon
-/// image/png // implementar apenas png
-/// application/json
-/// application/pdf
-
 
 pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){

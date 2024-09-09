@@ -1,0 +1,1 @@
+sudo cargo run 8000 > result.txt & (watch -n 0.1 "curl localhost:8000" > /dev/null)

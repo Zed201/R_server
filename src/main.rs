@@ -1,13 +1,13 @@
-use std::{net::{Shutdown, TcpListener}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}, thread, time::Duration};
+use std::{net::{Shutdown, TcpListener}, sync::{atomic::{AtomicBool, Ordering::SeqCst}, Arc}};
 use std::env;
+
 mod threadpool;
 use threadpool::*;
 
 mod server;
-use server::{*, log::*};
+use server::{*, log::shutdown};
 
 use ctrlc;
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -45,7 +45,6 @@ fn main() {
             match l.accept(){
                 Ok((mut s, _)) => {
                     handle_con(&mut s);
-                    
                     s.shutdown(Shutdown::Both).expect("Erro ao fechar conexão");
                 },
                 _ => {

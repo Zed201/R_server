@@ -13,7 +13,7 @@ pub fn info(s: &str){
 }
 
 pub fn print_rq(r: &Request){
-         info(format!("{}", r).as_str());
+    info(format!("{}", r).as_str());
 }
 
 pub fn warning(s: &str){
