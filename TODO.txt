@@ -7,6 +7,4 @@
 -Fazer flag para indicar a porta do sistema a ser aberta(X)
 -Fazer pagina de seleção de arquivos caso não tenha o index.html(X)
 
-
--Resolver bug na leitura da requisição e organizar use inúteis e tal
--Talez retirar os connectio
+-Ver se tem memory leak no server, ao desligar
