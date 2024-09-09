@@ -1,6 +1,5 @@
 use core::fmt;
 use std::io::{prelude::*, BufReader};
-use std::os::linux::raw::stat;
 use std::{fs, usize};
 use std::net::TcpStream;
 use std::path::Path;
@@ -45,7 +44,7 @@ pub fn code_to_status(code: u32) -> String {
 }
 
 #[derive(PartialEq)]
-enum FileType{
+pub enum FileType{
     TXT,
     HTML,
     CSS,
