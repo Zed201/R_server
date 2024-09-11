@@ -3,6 +3,7 @@ use super::Request;
 use colored::Colorize;
 use chrono::Local;
 
+// * info genérico
 pub fn info(s: &str){
     let n = Local::now();
     println!(
@@ -12,10 +13,13 @@ pub fn info(s: &str){
     );
 }
 
+// * só printando a estrutura de requisição
+// TODO: Mudar quando mudar como a 'Resquest' vai funcionar
 pub fn print_rq(r: &Request){
     info(format!("{}", r).as_str());
 }
 
+// * warning genérico
 pub fn warning(s: &str){
     let n = Local::now();
     println!(
@@ -25,11 +29,13 @@ pub fn warning(s: &str){
     );
 }
 
+// * mensagem ao não achar um arquivo
 pub fn file_not(s: &str){
     let s = s.white();
     warning(&format!("Arquivo {} não achado", s).red().to_string());
 }
 
+// * mensagem para desligar
 pub fn shutdown(){
     let n = Local::now();
     println!(

@@ -10,7 +10,9 @@ use build_html::{Html, HtmlContainer, HtmlPage};
 pub mod log;
 use log::*;
 
+// !local de onde o servidor vai ler os arquivos, para ele ler de onde for executado troca isso por "./" só
 static FILE_SOURCE_PATH: &str = "./test_source/";
+// * enum dos tipos de request
 enum HttpMet{
     GET,
     POST,

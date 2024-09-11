@@ -1,2 +1,4 @@
 /target
 result.txt
+*.zst
+heaptrack.r_server*

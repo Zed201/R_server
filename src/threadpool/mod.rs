@@ -60,14 +60,15 @@ impl ThreadPool {
         }
     }
 
-    // basicamente para quanod ele for terminar ele "limpar" todas as threas 
-    pub fn finish(&self){
-        for _i in 0..self.threads.len(){
-            if let Some(l) = self.sender.as_ref() {
-                let _ = l.send(Box::new(|| {}));
-            }
-        }
-    }
+    // // basicamente para quanod ele for terminar ele "limpar" todas as threas 
+    // comentada pois não parece fazer diferença na quantidade de memory leak
+    // pub fn finish(&self){
+    //     for _i in 0..self.threads.len(){
+    //         if let Some(l) = self.sender.as_ref() {
+    //             let _ = l.send(Box::new(|| {}));
+    //         }
+    //     }
+    // }
 
     
 }
@@ -77,7 +78,7 @@ impl Drop for ThreadPool {
         drop(self.sender.take());
         for worker in &mut self.threads {
             if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap(); // !erro aqui
+                thread.join().unwrap();
             }
         }
     }
