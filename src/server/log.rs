@@ -44,3 +44,12 @@ pub fn shutdown(){
         "DESLIGANDO".bright_red()
     );
 }
+
+pub fn on(){
+    let n = Local::now();
+    println!(
+        "{}: {}",
+        format!("[INFO {}]", n.format("%H:%M:%S")).green(),
+        "LIGANDO".yellow()
+    );
+}

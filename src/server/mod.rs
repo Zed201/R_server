@@ -10,9 +10,12 @@ use build_html::{Html, HtmlContainer, HtmlPage};
 pub mod log;
 use log::*;
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 // !local de onde o servidor vai ler os arquivos, para ele ler de onde for executado troca isso por "./" só
 static FILE_SOURCE_PATH: &str = "./test_source/";
 // * enum dos tipos de request
+#[derive(PartialEq)]
 enum HttpMet{
     GET,
     POST,
@@ -82,10 +85,10 @@ fn get_file_type(file_name: &str) -> FileType{
         },
         None =>{
             if file_name.contains("."){
-                // arquivo hidden
+                // arquivo hidden no linux
                 return TXT;
             } else {
-                return DIR;
+                return DIR; 
             }
 
         }
@@ -110,8 +113,10 @@ impl fmt::Display for FileType {
 }
 
 pub struct Request{
-    method: HttpMet,
-    required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
+    // method: HttpMet,
+    // required: String, // apenas nome do arquico que foi pedido, sem / no final, se for vazio é pq ele ta pedindo o index.html
+    data: HashMap<String, String>,
+    _time: u128
 }
 
 impl Request{
@@ -120,19 +125,20 @@ impl Request{
     // struct, mas aí ia ter de modificar todo o resto, onde ele é acessado
     fn new(stream: &mut TcpStream) -> Result<Request, String>{
         let request = read_req(stream);
-        let r = String::from("GET");
-        let r = Request {method: http_mfrom_str(request.get("User-Agent").unwrap_or_else(|| &r)), required: request["required"].clone()};
+        let n = SystemTime::now().duration_since(UNIX_EPOCH)
+                            .expect("Erro ao pegar o tempo atual")
+                            .as_millis();
+        let r = Request {data: request, _time: n};
         Ok(r)
     }
 }
 
 impl fmt::Display for Request {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.required.len() > 0{
-            write!(f, "{} request for {}", self.method, self.required)
-        } else {
-            write!(f, "{} request for /", self.method)
-        }
+        let m = &self.data["method"];
+        let r = &self.data["required"];
+        // se required for vazio ele colocar / que é o comportamento normal
+        write!(f, "{m} requets for {}", if r.len() > 0 {r} else {"/"})
     }
 }
 
@@ -305,10 +311,10 @@ pub fn handle_con(stream: &mut TcpStream) {
     match Request::new(stream){
         Ok(req) => {
             print_rq(&req);
-            match req.method {
+            match http_mfrom_str(req.data["method"].as_str()){
                 GET => {
                     // Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
-                    let _ = file_sender(stream, &req.required);
+                    let _ = file_sender(stream, &req.data["required"]);
 
                 },
                 POST => {
