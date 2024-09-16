@@ -12,6 +12,7 @@ pub struct Worker {
 pub type Job = Box<dyn FnOnce() + Send + 'static>;
 
 impl Worker {
+	#[warn(dead_code)]
 	pub fn new(id: usize, reciver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
 		let thread = thread::spawn(move || loop {
 			let message = reciver.lock().unwrap().recv();
