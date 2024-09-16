@@ -23,8 +23,8 @@ fn main() {
     on();
     let running = Arc::new(AtomicBool::new(true));
     let r = Arc::clone(&running);
-    let pool = Arc::new(ThreadPool::new(10));
-    let p = Arc::clone(&pool);
+    // let pool = Arc::new(ThreadPool::new(10));
+    // let p = Arc::clone(&pool);
    
     let _ = ctrlc::set_handler(move || {
         p.finish();
@@ -55,6 +55,7 @@ fn main() {
     * */
     while running.load(SeqCst) {
         let l = lister.clone();
+        // TODO: Resolver o threadpool
         // pool.execute(move || {
         //     match l.accept(){
         //         Ok((mut s, _)) => {

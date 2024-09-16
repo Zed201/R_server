@@ -1,3 +1,5 @@
+// TODO: Concertar problema de uso excessivo de memória
+
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
