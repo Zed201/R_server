@@ -1,6 +1,6 @@
 # Usando o heaptrack do KDE e o zstd(compressor de arquivos)
 cargo build --release
-heaptrack ./target/release/r_server 8000
+heaptrack ./target/release/r_server 8000 --web
 unzstd *.zst
 rm *.zst
 heaptrack_print heaptrack.r_server* > result.txt

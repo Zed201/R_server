@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 // !local de onde o servidor vai ler os arquivos,
 // !para ele ler de onde for executado troca isso por "./" só
-static FILE_SOURCE_PATH: &str = "./test_source/";
+pub static FILE_SOURCE_PATH: &str = "./test_source/";
 // * enum dos tipos de request
 #[derive(PartialEq)]
 enum HttpMet {
