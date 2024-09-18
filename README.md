@@ -17,20 +17,6 @@ Um servidor http criado a apartir do ultimo projeto do livro oficial de rust, ba
 
 // /// A WebSocket echo server
 // fn main () {
-// 	// exemplo de criar websocket, mas precisa partir do navegador
-//     let server = TcpListener::bind("127.0.0.1:9001").unwrap();
-//     for stream in server.incoming() {
-//         spawn (move || {
-//             let mut websocket = accept(stream.unwrap()).unwrap();
-//             loop {
-//                 let msg = websocket.read().unwrap();
-// 				println!("{:?}", msg);
-//                 // We do not want to send back ping/pong messages.
-//                 if msg.is_binary() || msg.is_text() {
-//                     websocket.send(msg).unwrap();
-//                 }
-//             }
-//         });
-//     }
+// 	
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////

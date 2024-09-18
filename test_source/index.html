@@ -8,6 +8,16 @@
         </head>
         <body>
                 <h1>Titulo</h1>
-                <p>Paragrafo22222a</p>
+                <p>Paragrafo22222ab</p>
         </body>
 </html>
+<script>
+        const s = new WebSocket("ws://127.0.0.1:8001")
+        console.log(s)
+        s.addEventListener("message", (event) => {
+                console.log("weifb")
+                location.reload()
+                // console.log("wief")
+        });
+        
+</script>
