@@ -6,7 +6,7 @@ Um servidor http criado a apartir do ultimo projeto do livro oficial de rust, ba
 - [ ] Aprimorar para algo como live server usando WebSocket(estruturar esquema no miro)
 - [ ] Comentar melhor o server/mod.rs
 - [X] Modificar como está a estrutura de Requets(talvez trocar para um type apenas de Hashmap)
-- [X] Melhorar o threadpool, ou adicionar o tokio, ele não ta pegando no pc de casa(TOP PROBLEMAS MISTERIOSOS QUE N SEI, PQ PEGA AO RODAR COM O HEAPSTACK; POR ENQUANTO ACEITEI QUE ELE PEGA DO JEITO QUE TÀ)
+- [X] Melhorar o threadpool, ou adicionar o tokio, ele não ta pegando no pc de casa(Agora só libera 215 bytes)
 - [ ] Fazer 2 "modos" um live server e outro server normal
 - [ ] Melhorar o resto do sistema com o tungstenite
 - [ ] Melhorar os argumentos de cli

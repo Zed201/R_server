@@ -2,7 +2,7 @@ use std::env;
 use std::io::Write;
 use std::time::Duration;
 use std::{
-	net::TcpListener,
+	net::{TcpListener, Shutdown},
 	sync::{
 		atomic::{AtomicBool, Ordering::SeqCst},
 		Arc,
@@ -103,9 +103,11 @@ fn main() {
 
 	let _ = ctrlc::set_handler(move || {
 		r.store(false, SeqCst);
+                // Arc::decrement_strong_count(r);
+                // drop(r);
 	});
 
-	// let _ = thread::spawn(move || { // para testes de tempo
+	// let h = thread::spawn(move || { // para testes de tempo
 	//     thread::sleep(Duration::from_secs(50));
 	//     r.store(false, SeqCst);
 	// });
@@ -128,20 +130,24 @@ fn main() {
 	}
 
 	thread::sleep(Duration::from_secs(1));
+    // h.join();
 	shutdown();
+
 }
 
 fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>){
 	// ! com 5 ele deixa leaked apenas 1.76k independente do tempo
 	let num_threads = 5;
+        let mut handles = Vec::with_capacity(num_threads);
 	for _i in 1..num_threads {
 		let l = lister.clone();
 		let r = running.clone();
-		thread::spawn(move || {
+		let h = thread::spawn(move || {
 			loop {
 				match l.accept() {
 					Ok((mut s, _)) => {
 						handle_con(&mut s);
+                                                s.shutdown(Shutdown::Both).expect("Falha ao fechar conexão");
 					}
 					_ => {
 						// nada
@@ -152,8 +158,14 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>){
 				}
 			}
 		});
+                handles.push(h);
 	}
-	while running.load(SeqCst) {}
+	while running.load(SeqCst) {
+        thread::sleep(Duration::from_millis(100));
+    }
+    // for h in handles {
+    //     h.join().unwrap();
+    // }
 }
 
 fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u32){
