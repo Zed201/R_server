@@ -32,15 +32,7 @@ use std::time::SystemTime;
 use std::path::*;
 // fn test_websocket() {
 // 	/*	Da para fazer assim colocando apenas esse html no arquivo
-// 	<script>
-// 		const s = new WebSocket("ws://127.0.0.1:8000")
-// 		console.log(s)
-// 		s.addEventListener("message", (event) => {
-// 			location.reload()
-// 		});
-
-// 	</script>
-// 	 */
+// // 	 */
 // 	/* rodou por 52s e vazou 83k de memoria, pode funcionar assim, mas tem de resolver o leak
 // 	exemplo de criar websocket, mas precisa partir do navegador */
 // 	let server = TcpListener::bind("127.0.0.1:8000").unwrap();
@@ -181,11 +173,13 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u32){
 
     let r = Arc::clone(&running);
     let p = thread::spawn(move || {
-        // let mut websocket = TcpListener::bind(format!("0.0.0.0:{}", porta + 1)).unwrap();
-        // let mut web_ = WebSocket::from_raw_socket(websocket, Role::Server, None);
+        let websocket = TcpListener::bind(format!("0.0.0.0:{}", porta + 1)).unwrap();
         loop {
             let _ = rx.recv();
             println!("Ping");
+            let s = websocket.accept().unwrap().0;
+            let mut w = tungstenite::accept(s).unwrap();
+            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
             if !r.load(SeqCst) {
                 break;
             }
@@ -204,35 +198,6 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u32){
             Ok((mut s, _)) => {
                 soc_con(&mut s, &mut set); 
                 s.shutdown(Shutdown::Both).unwrap();
-                // TODO: Fazer a logica do running, sair com o ctrl
-                // fazer um jeito de mandar o js para modificar as coisas
-                // let lister_web = TcpListener::bind(format!("0.0.0.0:8001")).unwrap();
-                // // fazer logica para modificar se for pasta
-                // let file = File::open(format!("{}{}", FILE_SOURCE_PATH, "index.html")).unwrap();
-
-                // let mut last = file.metadata().unwrap().modified().unwrap();
-                // let mut b = false;
-                // if !running.load(SeqCst) { // melhorar sainda
-                //     break;
-                // }
-                // // apartir daqui ele trava
-                // loop {
-                //     if !b {
-                //         let s2 = lister_web.accept().unwrap().0;
-                //         let mut web_s = tungstenite::accept(s2).unwrap();
-                //         let _ = web_s.send(tungstenite::Message::Text(String::new())).unwrap();
-                //         // copiar de cima e fazer a logica para ele troicar de dados, ou seja sair desse loop e ir para o proximo req
-                //         b = true;
-                //     }
-                //     thread::sleep(Duration::from_secs(1));
-                //     // TODO: melhorar isso daqui
-                //     let x = file.metadata().unwrap().modified().unwrap();
-                //     if last != x {
-                //         last = x;
-                //         b = false;
-                //     }
-                // }
-
             }
             _ => {
 
@@ -252,4 +217,5 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u32){
         }
 
     }
+    p.join().unwrap();
 }

@@ -15,6 +15,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // !local de onde o servidor vai ler os arquivos,
 // !para ele ler de onde for executado troca isso por "./" só
 pub static FILE_SOURCE_PATH: &str = "./test_source/";
+// TODO: modificar para ficar certo com a porta
+static JS_INJECTION: &str = "<script>
+		const s = new WebSocket('ws://127.0.0.1:8001')
+		console.log(s)
+		s.addEventListener('message', (event) => {
+			location.reload()
+		})
+                </script>";
+
+
 // * enum dos tipos de request
 #[derive(PartialEq)]
 enum HttpMet {
@@ -216,7 +226,7 @@ fn search_index() -> String {
 }
 
 // TODO? Talvez refatorar essa função, pois ta muitca coisa nela
-pub fn file_sender(stream: &mut TcpStream, file_name: &str) {
+pub fn file_sender(stream: &mut TcpStream, file_name: &str, b: bool) {
 	// se o nome de arquivo for "" vazio
 	let mut status = 200;
 	let mut relative_p = String::from(FILE_SOURCE_PATH);
@@ -240,9 +250,14 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str) {
 			stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
 		}
 	} else if p.is_file() {
-		match get_file_type(file_name) {
+                let t = get_file_type(file_name);
+		match t {
 			TXT | HTML | CSS | JS | JSON => {
-				let content = read_file_text(file_name).unwrap(); // talvez um panic aqui
+				let mut content = read_file_text(file_name).unwrap(); // talvez um panic aqui
+                                //  TODO: melhorar isso daqui
+                                if b {
+                                    content.push_str(JS_INJECTION);
+                                } 
 				let response = format!(
 					"{}{}",
 					header_make(status, get_file_type(file_name), content.len()),
@@ -315,7 +330,7 @@ pub fn handle_con(stream: &mut TcpStream) {
 			match http_mfrom_str(req.data["method"].as_str()) {
 				GET => {
 					// Caso o arquivo não exista, usar alguma forma de mandar o erro 404, tirar o status code de parametro e usar ele para ser decidido dentro da função
-					let _ = file_sender(stream, &req.data["required"]);
+					let _ = file_sender(stream, &req.data["required"], false);
 				}
 				POST => {
 					// TODO: implementar para mostrar os dados no terminal, basicamente(colocar os dados no ENUM de post)
@@ -336,7 +351,7 @@ pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>){
                 r = search_index();
             }
             // TODO: Melhorar esses métodos extensos
-            let _ = file_sender(stream, &r);
+            let _ = file_sender(stream, &r, true);
             let l = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r)).metadata().unwrap().modified().unwrap();
             set.insert(r, l); 
         }, 
