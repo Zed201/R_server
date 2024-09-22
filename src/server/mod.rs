@@ -24,7 +24,6 @@ static JS_INJECTION: &str = "<script>
 		})
                 </script>";
 
-
 // * enum dos tipos de request
 #[derive(PartialEq)]
 enum HttpMet {
@@ -250,14 +249,14 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str, b: bool) {
 			stream.write(format!("{}{}", header, html).as_bytes()).unwrap();
 		}
 	} else if p.is_file() {
-                let t = get_file_type(file_name);
+		let t = get_file_type(file_name);
 		match t {
 			TXT | HTML | CSS | JS | JSON => {
 				let mut content = read_file_text(file_name).unwrap(); // talvez um panic aqui
-                                //  TODO: melhorar isso daqui
-                                if b {
-                                    content.push_str(JS_INJECTION);
-                                } 
+							  //  TODO: melhorar isso daqui
+				if b {
+					content.push_str(JS_INJECTION);
+				}
 				let response = format!(
 					"{}{}",
 					header_make(status, get_file_type(file_name), content.len()),
@@ -343,21 +342,26 @@ pub fn handle_con(stream: &mut TcpStream) {
 	};
 }
 
-pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>){
-    match Request::new(stream) {
-        Ok(req) => {// não tem suporte para post e tal
-            let mut r = req.data["required"].clone();
-            if r.len() == 0 { // melhorar isso
-                r = search_index();
-            }
-            // TODO: Melhorar esses métodos extensos
-            let _ = file_sender(stream, &r, true);
-            let l = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r)).metadata().unwrap().modified().unwrap();
-            set.insert(r, l); 
-        }, 
-        Err(s) => {
-            warning(&s);
-        }
-    }
-
+pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>) {
+	match Request::new(stream) {
+		Ok(req) => {
+			// não tem suporte para post e tal
+			let mut r = req.data["required"].clone();
+			if r.len() == 0 {
+				// melhorar isso
+				r = search_index();
+			}
+			// TODO: Melhorar esses métodos extensos
+			let _ = file_sender(stream, &r, true);
+			let l = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r))
+				.metadata()
+				.unwrap()
+				.modified()
+				.unwrap();
+			set.insert(r, l);
+		}
+		Err(s) => {
+			warning(&s);
+		}
+	}
 }
