@@ -17,16 +17,19 @@ mod server;
 // use protocol::Role;
 use server::{log::shutdown, *};
 
-
+use std::collections::HashMap;
+use std::sync::mpsc::{self, channel};
 use ctrlc;
 
 use std::thread::{self, spawn};
 
-use tungstenite::*;
+use tungstenite::{*, protocol::Role};
 
 use std::fs::File;
 use std::io::prelude::*;
 
+use std::time::SystemTime;
+use std::path::*;
 // fn test_websocket() {
 // 	/*	Da para fazer assim colocando apenas esse html no arquivo
 // 	<script>
@@ -171,48 +174,82 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>){
     // }
 }
 
+
 #[warn(unused_variables)]
 fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u32){
+    let (tx, rx) = channel::<u8>();
+
+    let r = Arc::clone(&running);
+    let p = thread::spawn(move || {
+        // let mut websocket = TcpListener::bind(format!("0.0.0.0:{}", porta + 1)).unwrap();
+        // let mut web_ = WebSocket::from_raw_socket(websocket, Role::Server, None);
+        loop {
+            let _ = rx.recv();
+            println!("Ping");
+            if !r.load(SeqCst) {
+                break;
+            }
+        }
+        
+    });
+    // vai ter o nome do arquivo(desconsiderar pastas por enquanto) e o tempo de ultima modificação
+    let mut set: HashMap<String, SystemTime> = HashMap::new();
+    // let mut i = 0;
     // não vai ser multi threading, no momento ainda estou vendo certinho como vai funcionar
     loop {
+        if !running.load(SeqCst){
+            break;
+        }
         match lister.accept(){
             Ok((mut s, _)) => {
-                // let r = read_req(&mut s); // travando aqui por algum motivo
-                handle_con(&mut s);
+                soc_con(&mut s, &mut set); 
                 s.shutdown(Shutdown::Both).unwrap();
                 // TODO: Fazer a logica do running, sair com o ctrl
                 // fazer um jeito de mandar o js para modificar as coisas
-                let lister_web = TcpListener::bind(format!("0.0.0.0:8001")).unwrap();
-                // fazer logica para modificar se for pasta
-                let file = File::open(format!("{}{}", FILE_SOURCE_PATH, "index.html")).unwrap();
+                // let lister_web = TcpListener::bind(format!("0.0.0.0:8001")).unwrap();
+                // // fazer logica para modificar se for pasta
+                // let file = File::open(format!("{}{}", FILE_SOURCE_PATH, "index.html")).unwrap();
 
-                let mut last = file.metadata().unwrap().modified().unwrap();
-                let mut b = false;
-                if !running.load(SeqCst) { // melhorar sainda
-                    break;
-                }
-                // apartir daqui ele trava
-                loop {
-                    if !b {
-                        let s2 = lister_web.accept().unwrap().0;
-                        let mut web_s = tungstenite::accept(s2).unwrap();
-                        let _ = web_s.send(tungstenite::Message::Text(String::new())).unwrap();
-                        // copiar de cima e fazer a logica para ele troicar de dados, ou seja sair desse loop e ir para o proximo req
-                        b = true;
-                    }
-                    thread::sleep(Duration::from_secs(1));
-                    // TODO: melhorar isso daqui
-                    let x = file.metadata().unwrap().modified().unwrap();
-                    if last != x {
-                        last = x;
-                        b = false;
-                    }
-                }
+                // let mut last = file.metadata().unwrap().modified().unwrap();
+                // let mut b = false;
+                // if !running.load(SeqCst) { // melhorar sainda
+                //     break;
+                // }
+                // // apartir daqui ele trava
+                // loop {
+                //     if !b {
+                //         let s2 = lister_web.accept().unwrap().0;
+                //         let mut web_s = tungstenite::accept(s2).unwrap();
+                //         let _ = web_s.send(tungstenite::Message::Text(String::new())).unwrap();
+                //         // copiar de cima e fazer a logica para ele troicar de dados, ou seja sair desse loop e ir para o proximo req
+                //         b = true;
+                //     }
+                //     thread::sleep(Duration::from_secs(1));
+                //     // TODO: melhorar isso daqui
+                //     let x = file.metadata().unwrap().modified().unwrap();
+                //     if last != x {
+                //         last = x;
+                //         b = false;
+                //     }
+                // }
 
             }
             _ => {
 
             }
         }
+        thread::sleep(Duration::from_millis(150)); // espera um pouvco
+        for (nome, time_) in set.iter_mut(){
+            let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
+            let p = Path::new(x);
+            let c = p.metadata().unwrap().modified().unwrap();
+            if c != *time_ {
+                *time_ = c;
+                // println!("foi");
+                tx.send(1).unwrap();
+            }
+            // println!("{}{:?}", nome, time_.duration_since(SystemTime::UNIX_EPOCH).unwrap());
+        }
+
     }
 }

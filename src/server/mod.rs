@@ -327,3 +327,22 @@ pub fn handle_con(stream: &mut TcpStream) {
 		}
 	};
 }
+
+pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>){
+    match Request::new(stream) {
+        Ok(req) => {// não tem suporte para post e tal
+            let mut r = req.data["required"].clone();
+            if r.len() == 0 { // melhorar isso
+                r = search_index();
+            }
+            // TODO: Melhorar esses métodos extensos
+            let _ = file_sender(stream, &r);
+            let l = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r)).metadata().unwrap().modified().unwrap();
+            set.insert(r, l); 
+        }, 
+        Err(s) => {
+            warning(&s);
+        }
+    }
+
+}
