@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 build_html = "2.5.0"
 chrono = "0.4.38"
+clap = { version = "4.5.18", features = ["derive"] }
 colored = "2.1.0"
 colorize = "0.1.0"
 ctrlc = "3.4.5"
