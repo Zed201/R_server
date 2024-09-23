@@ -1,3 +1,1 @@
-function turn(){
-    window.location.href = '/test.html'
-}
+console.log("wieqwdqwf")

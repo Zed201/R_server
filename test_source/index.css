@@ -1,7 +1,8 @@
 body{
-    background-color: red;
+    background-color: blue;
 }
 
 p{
-    color: white;
+    color: red;
+    font-size: large;
 }

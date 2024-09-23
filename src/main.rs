@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-use log::on;
+use log::{on, reload};
 
 mod server;
 // use protocol::Role;
@@ -19,7 +19,7 @@ use server::{log::shutdown, *};
 
 use ctrlc;
 use std::collections::HashMap;
-use std::sync::mpsc::{self, channel};
+use std::sync::mpsc::{self, channel, Sender};
 
 use std::thread::{self, spawn};
 
@@ -39,15 +39,17 @@ enum Mode{
     Live
 }
 
-static MODE_STR: &str = "Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
-static PORT_STR: &str = "Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \nescolhida e o websocket vai ficar na 'porta + 1'\n";
+pub const PORTA_WEBSOCKET: u16 = 9001;
 
 fn main() {
+    let PORT_STR: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", PORTA_WEBSOCKET);
+    let MODE_STR: &str = "Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
+    
     // so peguei do gpt
     let cmd = Command::new("R_server")
         .args(&[
             Arg::new("port_no_flag")
-                .help(PORT_STR)
+                .help(PORT_STR.clone())
                 .required(false)
                 .value_parser(clap::value_parser!(u16))
                 .index(1),
@@ -96,10 +98,28 @@ fn main() {
         r.store(false, SeqCst);	
     });
 
-    // // let h = thread::spawn(move || { // para testes de tempo
-    // //     thread::sleep(Duration::from_secs(50));
-    // //     r.store(false, SeqCst);
-    // // });
+    // let h = thread::spawn(move || { // para testes de tempo
+    //     thread::sleep(Duration::from_secs(50));
+    //     r.store(false, SeqCst);
+    // });
+
+    // thread de websocket para enviar um reload se for preciso, seja para ele liberar o
+    // tcplistener ou para dar reload no live server
+    let (tx, rx) = channel::<u8>();
+    let r = Arc::clone(&running);
+    let p = thread::spawn(move || {
+        let websocket = TcpListener::bind(format!("0.0.0.0:{}", PORTA_WEBSOCKET)).unwrap();
+        loop {
+            let _ = rx.recv();
+            // println!("Ping");
+            let s = websocket.accept().unwrap().0;
+            let mut w = tungstenite::accept(s).unwrap();
+            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
+            if !r.load(SeqCst) {
+                break;
+            }
+        }
+    });
 
     let lister =
     Arc::new(TcpListener::bind(ip.clone()).expect("Não conseguiu criar o socket na porta escolhida\n"));
@@ -108,19 +128,20 @@ fn main() {
 
     match mode {
         Mode::Live => {
-            live_server(lister, running, porta);
+            live_server(lister, running, tx);
         }
         Mode::Web => {
-            normal_server(lister, running);
+            normal_server(lister, running, tx);
         }
     }
 
     thread::sleep(Duration::from_secs(1));
     // h.join();
+    p.join().unwrap();
     shutdown();
 }
 
-fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>) {
+fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<u8>) {
     // ! com 5 ele deixa leaked apenas 1.76k independente do tempo
     // Com 2 ou com 1 funciona, mas fica travado a apenas 1 navegador, por causa do navegador
     // travar uma conexão
@@ -145,41 +166,23 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>) {
                 }
             }
         });
-    handles.push(h);
+        handles.push(h);
     }
     while running.load(SeqCst) {
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(300));
     }
+    tx.send(1).unwrap();
     // se tirar o for ao sair ele obviamente não trava mas deixa vazamento de memoria
     for h in handles {
-    h.join().unwrap();
+        h.join().unwrap();
     }
 }
 
-fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u16) {
-    let (tx, rx) = channel::<u8>();
-
-    let r = Arc::clone(&running);
-    let p = thread::spawn(move || {
-        let websocket = TcpListener::bind(format!("0.0.0.0:{}", porta + 1)).unwrap();
-        loop {
-            let _ = rx.recv();
-            println!("Ping");
-            let s = websocket.accept().unwrap().0;
-            let mut w = tungstenite::accept(s).unwrap();
-            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
-            if !r.load(SeqCst) {
-                break;
-            }
-        }
-    });
+fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<u8>) {
     // vai ter o nome do arquivo(desconsiderar pastas por enquanto) e o tempo de ultima modificação
     let mut set: HashMap<String, SystemTime> = HashMap::new();
     // não vai ser multi threading, no momento ainda estou vendo certinho como vai funcionar
-    loop {
-        if !running.load(SeqCst) {
-            break;
-        }
+    loop { 
         match lister.accept() {
             Ok((mut s, _)) => {
                 soc_con(&mut s, &mut set);
@@ -187,16 +190,23 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, porta: u16) {
             }
             _ => {}
         }
-        thread::sleep(Duration::from_millis(150)); // espera um pouco
+        if !running.load(SeqCst) {
+            tx.send(1).unwrap();
+            break;
+        }
+        thread::sleep(Duration::from_millis(250)); 
+        println!("a");
         for (nome, time_) in set.iter_mut() {
             let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
             let p = Path::new(x);
+            // algum erro ta dando aqui
             let c = p.metadata().unwrap().modified().unwrap();
+            println!("b");
             if c != *time_ {
                 *time_ = c;
+                reload();
                 tx.send(1).unwrap();
             }
         }
     }
-p.join().unwrap();
 }

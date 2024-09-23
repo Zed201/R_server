@@ -45,3 +45,12 @@ pub fn on() {
 		"LIGANDO".yellow()
 	);
 }
+
+pub fn reload(){
+	let n = Local::now();
+	println!(
+		"{}: {}",
+		format!("[INFO {}]", n.format("%H:%M:%S")).green(),
+		"RELOAD".green()
+	);
+}
