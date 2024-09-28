@@ -42,33 +42,33 @@ enum Mode{
 pub const PORTA_WEBSOCKET: u16 = 9001;
 
 fn main() {
-    let PORT_STR: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", PORTA_WEBSOCKET);
-    let MODE_STR: &str = "Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
+    let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", PORTA_WEBSOCKET);
+    let mode_str: &str = "Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
     
     // so peguei do gpt
     let cmd = Command::new("R_server")
         .args(&[
             Arg::new("port_no_flag")
-                .help(PORT_STR.clone())
+                .help(port_str.clone())
                 .required(false)
                 .value_parser(clap::value_parser!(u16))
                 .index(1),
             Arg::new("port")
                 .short('p')
                 .long("port")
-                .help(PORT_STR)
+                .help(port_str)
                 .required(false)
                 .value_parser(clap::value_parser!(u16)),
 
             Arg::new("mode_no_flag")
-                .help(MODE_STR)
+                .help(mode_str)
                 .required(false)
                 .value_parser(clap::builder::EnumValueParser::<Mode>::new())
                 .index(2),
             Arg::new("mode")
                 .short('m')
                 .long("mode")
-                .help(MODE_STR)
+                .help(mode_str)
                 .required(false)
                 .value_parser(clap::builder::EnumValueParser::<Mode>::new())
 
@@ -112,11 +112,14 @@ fn main() {
         loop {
             let _ = rx.recv();
             // println!("Ping");
-            let s = websocket.accept().unwrap().0;
-            let mut w = tungstenite::accept(s).unwrap();
-            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
             if !r.load(SeqCst) {
                 break;
+            }
+
+            if let Ok((s, _)) = websocket.accept(){
+                if let Ok(mut w) = tungstenite::accept(s) {
+                    let _ = w.send(tungstenite::Message::Text(String::new()));
+                }
             }
         }
     });
@@ -155,7 +158,7 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<
                 match l.accept() {
                     Ok((mut s, _)) => {
                         handle_con(&mut s);
-                        s.shutdown(Shutdown::Both).expect("Falha ao fechar conexão");
+                        // s.shutdown(Shutdown::Both).expect("Falha ao fechar conexão");
                     }
                     _ => {
                         // nada
@@ -186,7 +189,7 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<u8
         match lister.accept() {
             Ok((mut s, _)) => {
                 soc_con(&mut s, &mut set);
-                s.shutdown(Shutdown::Both).unwrap();
+                // s.shutdown(Shutdown::Both).unwrap();
             }
             _ => {}
         }
