@@ -69,7 +69,8 @@ use FileType::*;
 
 fn get_file_type(file_name: &str) -> FileType {
     match Path::new(file_name).extension() {
-    Some(extension) => match extension.to_str().unwrap() {
+        Some(extension) =>
+        match extension.to_str().unwrap() {
             "txt" => TXT,
             "html" => HTML,
             "css" => CSS,
@@ -127,7 +128,7 @@ impl Request {
         let n = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Erro ao pegar o tempo atual")
-        .as_millis();
+            .as_millis();
         let r = Request {
             data: request,
             _time: n,
@@ -160,7 +161,7 @@ pub fn read_req(stream: &mut TcpStream) -> HashMap<String, String> {
             }
             (String::new(), String::new())
         })
-    .collect();
+        .collect();
     let uri: Vec<&str> = f.split(" ").collect();
     // tratado de forma meio porca mais
     mapa.insert("method".to_string(), uri.get(0).unwrap_or_else(|| &" ").to_string());
@@ -199,21 +200,26 @@ pub fn read_file_bytes(file_name: &str) -> Result<Vec<u8>, String> {
 // procurar o aquivo index caso o request seja /, caso não encontre o index.html, retornar um html qualquer(o ultimo na iteração)
 // caso não tenha html ele retorna vazio, aí envia error 404
 fn search_index() -> String {
-    let dir = fs::read_dir(FILE_SOURCE_PATH).unwrap();
-    let mut tmp: String = String::new();
-    for i in dir {
-        let p = i.unwrap().path();
-        if p.is_file() {
-            let d = p.file_name().unwrap().to_str().unwrap();
-            let t = get_file_type(d);
-            if d == "index.html" {
-                return String::from("index.html");
-            } else if t == HTML {
-                tmp = d.to_string();
+    if let Ok(dir) = fs::read_dir(FILE_SOURCE_PATH) {
+        let mut tmp: String = String::new();
+        for i in dir {
+            if let Ok(p) = i {
+                let p = p.path();
+                if p.is_file() {
+                    let d = p.file_name().unwrap().to_str().unwrap();
+                    let t = get_file_type(d);
+                    if d == "index.html" {
+                        return String::from("index.html");
+                    } else if t == HTML {
+                        tmp = d.to_string();
+                    }
+
+                }
             }
         }
+        return tmp;
     }
-    tmp
+    String::new()
 }
 
 use super::PORTA_WEBSOCKET;
@@ -223,13 +229,13 @@ pub fn file_sender(stream: &mut TcpStream, file_name: &str) {
 
     // js usado para se conectar ao websocket aberto
     let js_injection: String = format!("
-        <script>
-            const s = new WebSocket('ws://127.0.0.1:{}')
-            console.log(s)
-            s.addEventListener('message', (event) => {{
-            location.reload()
-        }})
-        </script>", PORTA_WEBSOCKET);
+<script>
+const s = new WebSocket('ws://127.0.0.1:{}')
+console.log(s)
+s.addEventListener('message', (event) => {{
+location.reload()
+}})
+</script>", PORTA_WEBSOCKET);
 
     // se o nome de arquivo for "" vazio
     let mut status = 200;
@@ -367,12 +373,12 @@ pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>) {
             // TODO: Melhorar esses métodos extensos
             let _ = file_sender(stream, &r);
             // tratar erros
-            let l = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r))
-                .metadata()
-                .unwrap()
-                .modified()
-            .unwrap();
-            set.insert(r, l);
+            //
+            if let Ok(l) = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r)).metadata(){
+                if let Ok(l) = l.modified() {
+                    set.insert(r, l);
+                }
+            }
         }
         Err(s) => {
             warning(&s);

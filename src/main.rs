@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-use log::{on, reload};
+use log::{on, reload, warning};
 
 mod server;
 // use protocol::Role;
@@ -107,27 +107,24 @@ fn main() {
     // tcplistener ou para dar reload no live server
     let (tx, rx) = channel::<u8>();
     let r = Arc::clone(&running);
+    
     let p = thread::spawn(move || {
         let websocket = TcpListener::bind(format!("0.0.0.0:{}", PORTA_WEBSOCKET)).unwrap();
         loop {
             let _ = rx.recv();
             // println!("Ping");
+            let s = websocket.accept().unwrap().0;
+            let mut w = tungstenite::accept(s).unwrap();
+            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
             if !r.load(SeqCst) {
                 break;
             }
-
-            if let Ok((s, _)) = websocket.accept(){
-                if let Ok(mut w) = tungstenite::accept(s) {
-                    let _ = w.send(tungstenite::Message::Text(String::new()));
-                }
-            }
         }
     });
-
     let lister =
     Arc::new(TcpListener::bind(ip.clone()).expect("Não conseguiu criar o socket na porta escolhida\n"));
     // mesmo setando isso os navegadores ainda conseguem bloquear
-    lister.set_nonblocking(true).unwrap();
+    let _ = lister.set_nonblocking(true);
 
     match mode {
         Mode::Live => {
@@ -174,7 +171,12 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<
     while running.load(SeqCst) {
         thread::sleep(Duration::from_millis(300));
     }
+    // tx.send(1).unwrap_or_else(|_| { 
+    //     warning("Não foi possível mandar ping");
+    //     ()
+    // });
     tx.send(1).unwrap();
+
     // se tirar o for ao sair ele obviamente não trava mas deixa vazamento de memoria
     for h in handles {
         h.join().unwrap();
@@ -194,22 +196,35 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<u8
             _ => {}
         }
         if !running.load(SeqCst) {
-            tx.send(1).unwrap();
+            tx.send(1).unwrap_or_else(|_| { 
+                 warning("Não foi possível mandar ping");
+                ()
+            });
             break;
         }
         thread::sleep(Duration::from_millis(250)); 
-        println!("a");
+        // println!("a");
         for (nome, time_) in set.iter_mut() {
             let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
             let p = Path::new(x);
             // algum erro ta dando aqui
-            let c = p.metadata().unwrap().modified().unwrap();
-            println!("b");
-            if c != *time_ {
-                *time_ = c;
-                reload();
-                tx.send(1).unwrap();
+            if let Ok(m) = p.metadata() {
+                if let Ok(c) = m.modified(){
+                    if c != *time_ {
+                        *time_ = c;
+                        reload();
+                        tx.send(1).unwrap_or_else(|_| {
+                            warning("Não foi possível mandar ping");
+                            ()
+                        });
+                    }
+                } else {
+                    warning("Arquivo não existente")
+                }
+            } else {
+                warning("Arquivo não existente")
             }
+            // println!("b");
         }
     }
 }
