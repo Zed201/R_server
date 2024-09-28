@@ -115,7 +115,7 @@ fn main() {
             // println!("Ping");
             let s = websocket.accept().unwrap().0;
             let mut w = tungstenite::accept(s).unwrap();
-            let _ = w.send(tungstenite::Message::Text(String::new())).unwrap();
+            let _ = w.send(tungstenite::Message::Text(String::new()));
             if !r.load(SeqCst) {
                 break;
             }
@@ -175,7 +175,7 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<
     //     warning("Não foi possível mandar ping");
     //     ()
     // });
-    tx.send(1).unwrap();
+    let _ = tx.send(1);
 
     // se tirar o for ao sair ele obviamente não trava mas deixa vazamento de memoria
     for h in handles {
@@ -187,44 +187,51 @@ fn live_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<u8
     // vai ter o nome do arquivo(desconsiderar pastas por enquanto) e o tempo de ultima modificação
     let mut set: HashMap<String, SystemTime> = HashMap::new();
     // não vai ser multi threading, no momento ainda estou vendo certinho como vai funcionar
-    loop { 
-        match lister.accept() {
-            Ok((mut s, _)) => {
-                soc_con(&mut s, &mut set);
-                // s.shutdown(Shutdown::Both).unwrap();
+    let r = Arc::clone(&running);
+    let tx2 = tx.clone();
+    let h = thread::spawn(move || {
+        loop { 
+            if !r.load(SeqCst) {
+                break;
             }
-            _ => {}
-        }
-        if !running.load(SeqCst) {
-            tx.send(1).unwrap_or_else(|_| { 
-                 warning("Não foi possível mandar ping");
-                ()
-            });
-            break;
-        }
-        thread::sleep(Duration::from_millis(250)); 
-        // println!("a");
-        for (nome, time_) in set.iter_mut() {
-            let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
-            let p = Path::new(x);
-            // algum erro ta dando aqui
-            if let Ok(m) = p.metadata() {
-                if let Ok(c) = m.modified(){
-                    if c != *time_ {
-                        *time_ = c;
-                        reload();
-                        tx.send(1).unwrap_or_else(|_| {
-                            warning("Não foi possível mandar ping");
-                            ()
-                        });
+
+            match lister.accept() {
+                Ok((mut s, _)) => {
+                    soc_con(&mut s, &mut set);
+                    // s.shutdown(Shutdown::Both).unwrap();
+                }
+                _ => {}
+            }
+            thread::sleep(Duration::from_millis(250)); 
+            // println!("a");
+            for (nome, time_) in set.iter_mut() {
+                let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
+                let p = Path::new(x);
+                // println!("{}", x);
+                // algum erro ta dando aqui
+                if let Ok(m) = p.metadata() {
+                    if let Ok(c) = m.modified(){
+                        if c != *time_ {
+                            *time_ = c;
+                            reload();
+                            tx2.send(1).unwrap_or_else(|_| {
+                                warning("Não foi possível mandar ping");
+                                ()
+                            });
+                        }
+                    } else {
+                        warning("Arquivo não existente")
                     }
                 } else {
                     warning("Arquivo não existente")
                 }
-            } else {
-                warning("Arquivo não existente")
+                // println!("b");
             }
-            // println!("b");
-        }
+        }});
+    while running.load(SeqCst) {
+        thread::sleep(Duration::from_millis(300));
     }
+
+    let _ = tx.send(1);
+    let _ = h.join();
 }

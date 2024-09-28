@@ -10,8 +10,7 @@ Um servidor http criado a apartir do ultimo projeto do livro oficial de rust, ba
 - [X] Fazer 2 "modos" um live server e outro server normal
 - [ ] Melhorar o resto do sistema com o tungstenite
 - [X] Melhorar os argumentos de cli
-- [ ] Optimizar uso de memória
-- [ ] Melhorar saida do modo live
+- [X] Optimizar uso de memória
+- [X] Melhorar saida do modo live
 - [ ] Testar com multiplos html e testar com retirada de "marcadores" dos vistos
 - [ ] Fazer alguma logica para atualizar outros arquivos além de html
-- [ ] Verificar o pq quando usa os argumentos do clap ele deixa mais memória leaked
