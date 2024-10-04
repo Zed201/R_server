@@ -170,6 +170,7 @@ fn normal_server(lister: Arc<TcpListener>, running: Arc<AtomicBool>, tx: Sender<
     }
     while running.load(SeqCst) {
         thread::sleep(Duration::from_millis(300));
+
     }
     // tx.send(1).unwrap_or_else(|_| { 
     //     warning("Não foi possível mandar ping");
