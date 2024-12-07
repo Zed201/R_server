@@ -56,45 +56,51 @@
 // }
 
 //////////////////////////////////////////////////////////
-use log::{self, Level, LevelFilter};
-use std::io::Write;
 use chrono::Local;
+use log::{self, info, warn, LevelFilter};
+use once_cell::sync::Lazy;
 use std::env;
+use std::str::FromStr;
 // RUST_LOG=[target][=][level][,...]
 // Levels(crescente): error, warn, info, debug, trace, off
 
 struct Logger;
+// Implementar a questão de cores no logger
 
 impl log::Log for Logger {
 	fn enabled(&self, metadata: &log::Metadata) -> bool {
-		metadata.level() <= log::Level::Info
+		metadata.level() <= *MAX_LEVEL
 	}
-	fn flush(&self) {
-		
-	}
+	fn flush(&self) {}
 	fn log(&self, record: &log::Record) {
-		if self.enabled(record.metadata()){
+		if self.enabled(record.metadata()) {
 			let n = Local::now();
-			println!("[{} - {}]: {}", 
-			record.level(), n.format("%H:%M:%S"), record.args());
+			println!("[{} - {}]: {}", record.level(), n.format("%H:%M:%S"), record.args());
 		}
 	}
 }
 
 static L: Logger = Logger;
+// Usa a inicialização lazy para pegar o Maximo de Log
+static MAX_LEVEL: Lazy<LevelFilter> = Lazy::new(|| match env::var("LOG") {
+	Ok(val) => match LevelFilter::from_str(val.as_str()) {
+		Ok(v) => v,
+		Err(_) => LEVEL_DEFAULT,
+	},
+	Err(_) => LEVEL_DEFAULT,
+});
+static LEVEL_DEFAULT: LevelFilter = LevelFilter::Info;
 
-pub fn init_logger() -> Result<(), log::SetLoggerError>{
-	let logMax = match env::var("LOG"){
-		Ok(val) => val,
-		Err(_) => String::from("INFO")
-	};
-	// funcionando mais ou menos
-	log::set_logger(&L).map(|()| 
-		log::set_max_level(
-			match logMax.to_uppercase().as_str() {
-				"DEBUG" => LevelFilter::Debug,
-				_ => LevelFilter::Warn
-			}
-		)	
-	)
+// inicia o logger principal
+pub fn init_logger() {
+	let _ = log::set_logger(&L);
+	log::set_max_level(*MAX_LEVEL);
+}
+
+pub fn on(port: u16) {
+	info!("Ligando o servidor na porta {port}");
+}
+
+pub fn off() {
+	warn!("Desligando o servidor")
 }

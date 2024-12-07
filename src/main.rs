@@ -44,7 +44,7 @@
 // fn main() {
 //     let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", PORTA_WEBSOCKET);
 //     let mode_str: &str = "Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
-    
+
 //     // so peguei do gpt
 //     let cmd = Command::new("R_server")
 //         .args(&[
@@ -95,7 +95,7 @@
 //     let r = Arc::clone(&running);
 
 //     let _ = ctrlc::set_handler(move || {
-//         r.store(false, SeqCst);	
+//         r.store(false, SeqCst);
 //     });
 
 //     // let h = thread::spawn(move || { // para testes de tempo
@@ -107,7 +107,7 @@
 //     // tcplistener ou para dar reload no live server
 //     let (tx, rx) = channel::<u8>();
 //     let r = Arc::clone(&running);
-    
+
 //     let p = thread::spawn(move || {
 //         let websocket = TcpListener::bind(format!("0.0.0.0:{}", PORTA_WEBSOCKET)).unwrap();
 //         loop {
@@ -172,7 +172,7 @@
 //         thread::sleep(Duration::from_millis(300));
 
 //     }
-//     // tx.send(1).unwrap_or_else(|_| { 
+//     // tx.send(1).unwrap_or_else(|_| {
 //     //     warning("Não foi possível mandar ping");
 //     //     ()
 //     // });
@@ -191,7 +191,7 @@
 //     let r = Arc::clone(&running);
 //     let tx2 = tx.clone();
 //     let h = thread::spawn(move || {
-//         loop { 
+//         loop {
 //             if !r.load(SeqCst) {
 //                 break;
 //             }
@@ -203,7 +203,7 @@
 //                 }
 //                 _ => {}
 //             }
-//             thread::sleep(Duration::from_millis(250)); 
+//             thread::sleep(Duration::from_millis(250));
 //             // println!("a");
 //             for (nome, time_) in set.iter_mut() {
 //                 let x = &format!("{}{}", FILE_SOURCE_PATH, nome);
@@ -237,15 +237,113 @@
 //     let _ = h.join();
 // }
 
-use tokio;
 mod server;
-use server::log::{*};
-use log::{warn, debug, info};
+use clap::*;
+use log::{error, info, warn};
+use server::log::*;
+use tokio::sync::broadcast;
+// use log::{debug, info, warn};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Mode {
+	WEB,
+	LIVE,
+}
 
 #[tokio::main]
-async fn main(){
-    let _ = server::log::init_logger();
-    warn!("warn");
-    debug!("debug");
-    info!("info");
+async fn main() {
+	// retrabalhar essas strings
+	let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", 1);
+	let mode_str: &str =
+		"Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
+
+	let cmd = Command::new("R_server")
+		.args(&[
+			Arg::new("port_no_flag")
+				.help(port_str.clone())
+				.required(false)
+				.value_parser(clap::value_parser!(u16))
+				.index(1),
+			Arg::new("port")
+				.short('p')
+				.long("port")
+				.help(port_str)
+				.required(false)
+				.value_parser(clap::value_parser!(u16)),
+			Arg::new("mode_no_flag")
+				.help(mode_str)
+				.required(false)
+				.value_parser(clap::builder::EnumValueParser::<Mode>::new())
+				.index(2),
+			Arg::new("mode")
+				.short('m')
+				.long("mode")
+				.help(mode_str)
+				.required(false)
+				.value_parser(clap::builder::EnumValueParser::<Mode>::new()),
+		])
+		.get_matches();
+
+	init_logger();
+
+	let porta = cmd
+		.get_one::<u16>("port")
+		.or_else(|| cmd.get_one::<u16>("port_no_flag"))
+		.cloned()
+		.unwrap_or(8000);
+	let mode = cmd
+		.get_one::<Mode>("mode")
+		.or_else(|| cmd.get_one::<Mode>("mode_no_flag"))
+		.cloned()
+		.unwrap_or(Mode::WEB);
+	let ip = format!("0.0.0.0:{}", porta);
+
+	on(porta);
+	// match tokio::signal::ctrl_c().await {
+	// 	Ok(()) => {}
+	// 	Err(e) => {
+	// 		error!("Shutdown não deu certo: {e}");
+	// 	}
+	// }
+	info!("a");
+	let (stx, _) = broadcast::channel::<bool>(1);
+	let sig = tokio::spawn(handle_s(stx)); // um handle de thread que retorna quando o ctrl+C
+					// for pressionado
+	let lop = tokio::spawn(async {
+		let mut inter = tokio::time::interval(std::time::Duration::from_secs(1));
+		loop {
+			inter.tick().await; // tem que ter um await para o runtime saber onde
+		       // multiplexar
+			info!("coisas");
+		}
+	});
+	tokio::select! {
+	    _ = sig => {
+		    off();
+	    }, // get out from ctrl+C
+	    _ = lop => {}, // event loop normal
+	}
+	// TODO: Fazer parte do live com tungstenite?
+
+	// não pegar essa logica por normal e web, mas sim dar um jeito de conseguir "abstrair"
+	// como camadas
+	// match mode {
+	// 	Mode::WEB => {
+	// 		web_server();
+	// 	}
+	// 	Mode::LIVE => {
+	// 		live_server();
+	// 	}
+	// };
 }
+
+async fn handle_s(stx: broadcast::Sender<bool>) {
+	if tokio::signal::ctrl_c().await.is_ok() {
+		let _ = stx.send(true);
+	}
+}
+
+//
+// fn live_server() {}
+//
+// fn web_server() {}
