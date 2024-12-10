@@ -8,7 +8,7 @@
 // use build_html::{Html, HtmlContainer, HtmlPage};
 
 pub mod log;
-use log::*;
+// use log::*;
 
 // use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -386,3 +386,14 @@ use log::*;
 //         }
 //     }
 // }
+
+use tokio::{net::TcpStream};
+use hyper::server::conn::http2; // fa
+use hyper_util::rt::TokioIo;
+pub async fn process(stream: &mut TcpStream){
+    let io = TokioIo::new(stream); // cria uma interface de io com feature
+    // no fim ela implementa o tokio::io e o hyper::io traits
+}
+
+// implements ofd https://github.com/hyperium/hyper/blob/master/examples/hello-http2.rs
+// https://hyper.rs/guides/1/init/runtime/

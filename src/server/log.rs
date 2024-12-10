@@ -102,20 +102,6 @@ static MAX_LEVEL: Lazy<LevelFilter> = Lazy::new(|| match env::var("LOG") {
 });
 static LEVEL_DEFAULT: LevelFilter = LevelFilter::Info;
 
-// inicia o logger principal
-pub fn init_logger() {
-	let _ = log::set_logger(&L);
-	log::set_max_level(*MAX_LEVEL);
-}
-
-pub fn on(port: u16) {
-	info!("Ligando o servidor na porta {port}");
-}
-
-pub fn off() {
-	warn!("Desligando o servidor")
-}
-
 // personalizado para print
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug)]
 enum LogLevel {
@@ -145,4 +131,18 @@ impl From<Level> for LogLevel {
 			_ => LogLevel::ERROR,
 		}
 	}
+}
+
+// inicia o logger principal
+pub fn init_logger() {
+	let _ = log::set_logger(&L);
+	log::set_max_level(*MAX_LEVEL);
+}
+
+pub fn on(port: u16) {
+	info!("Servidor acessível em http://0.0.0.0:{port}");
+}
+
+pub fn off() {
+	warn!("Desligando o servidor")
 }
