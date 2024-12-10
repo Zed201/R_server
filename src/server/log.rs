@@ -57,7 +57,10 @@
 
 //////////////////////////////////////////////////////////
 use chrono::Local;
-use log::{self, info, warn, LevelFilter};
+use colored::*;
+use colorize::AnsiColor;
+use core::fmt;
+use log::{self, info, warn, Level, LevelFilter};
 use once_cell::sync::Lazy;
 use std::env;
 use std::str::FromStr;
@@ -75,7 +78,15 @@ impl log::Log for Logger {
 	fn log(&self, record: &log::Record) {
 		if self.enabled(record.metadata()) {
 			let n = Local::now();
-			println!("[{} - {}]: {}", record.level(), n.format("%H:%M:%S"), record.args());
+			let mut f = format!("[{} - {}]", LogLevel::from(record.level()), n.format("%H:%M:%S"));
+			f = match record.level() {
+				Level::Error => f.yellow(),
+				Level::Warn => f.red(),
+				Level::Info => f.green(),
+				Level::Debug => f.blue(),
+				_ => f,
+			};
+			println!("{}: {}", f, record.args());
 		}
 	}
 }
@@ -103,4 +114,35 @@ pub fn on(port: u16) {
 
 pub fn off() {
 	warn!("Desligando o servidor")
+}
+
+// personalizado para print
+#[derive(Eq, PartialEq, PartialOrd, Ord, Debug)]
+enum LogLevel {
+	ERROR,
+	WARN,
+	INFO,
+	DEBUG,
+}
+
+impl fmt::Display for LogLevel {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			LogLevel::ERROR => write!(f, "ERROR"),
+			LogLevel::WARN => write!(f, "WARN "),
+			LogLevel::INFO => write!(f, "INFO "),
+			LogLevel::DEBUG => write!(f, "DEBUG"),
+		}
+	}
+}
+
+impl From<Level> for LogLevel {
+	fn from(value: Level) -> Self {
+		match value {
+			Level::Warn => LogLevel::WARN,
+			Level::Debug => LogLevel::DEBUG,
+			Level::Info => LogLevel::INFO,
+			_ => LogLevel::ERROR,
+		}
+	}
 }

@@ -239,7 +239,7 @@
 
 mod server;
 use clap::*;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use server::log::*;
 use tokio::sync::broadcast;
 // use log::{debug, info, warn};
@@ -315,6 +315,9 @@ async fn main() {
 			inter.tick().await; // tem que ter um await para o runtime saber onde
 		       // multiplexar
 			info!("coisas");
+			warn!("perigo");
+			error!("Erro");
+			debug!("debug");
 		}
 	});
 	tokio::select! {
