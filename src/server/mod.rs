@@ -7,8 +7,7 @@
 
 // use build_html::{Html, HtmlContainer, HtmlPage};
 
-pub mod log;
-// use log::*;
+
 
 // use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -387,13 +386,36 @@ pub mod log;
 //     }
 // }
 
+use hyper_util::server::conn::auto;
 use tokio::{net::TcpStream};
 use hyper::server::conn::http2; // fa
 use hyper_util::rt::TokioIo;
-pub async fn process(stream: &mut TcpStream){
+
+pub mod Locallog;
+use log::{error};
+use hyper::rt::Executor;
+use hyper::Request;
+use hyper_util::rt::TokioExecutor;
+use hyper::service::service_fn;
+use hyper_util::server::conn::auto;
+
+
+pub async fn process(stream: TcpStream){
     let io = TokioIo::new(stream); // cria uma interface de io com feature
     // no fim ela implementa o tokio::io e o hyper::io traits
+    // ver um jeito de não fica sempre recriando o builder
+
+    // por enquanto ta geral de tipos
+    // https://docs.rs/hyper-util/latest/hyper_util/server/conn/auto/struct.Builder.html
+    let b = auto::Builder::new(TokioExecutor::new());
+    // https://github.com/hyperium/hyper/blob/master/examples/hello-http2.rs
+}
+
+// modelar como um service que retorna uma future
+pub async fn response_service<T>(req: Request<T>){
+    
 }
 
 // implements ofd https://github.com/hyperium/hyper/blob/master/examples/hello-http2.rs
 // https://hyper.rs/guides/1/init/runtime/
+// talvez não precise de http/2 mas para dar server_push precisa

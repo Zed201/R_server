@@ -194,7 +194,7 @@ mod server;
 use server::process;
 use clap::*;
 use log::{debug, error, info, warn};
-use server::log::*;
+use server::Locallog::*;
 use tokio::net::TcpListener;
 use std::process::exit;
 // use tokio::time::{sleep, Duration};
@@ -222,8 +222,10 @@ async fn main() {
 			// _ = timer => {},
 			_ = async {
 				loop {
-					if let Ok((mut s, _)) = listener.accept().await{
-						process(&mut s).await;
+					if let Ok((s, _)) = listener.accept().await{
+						tokio::spawn(async move {
+							 process(s).await
+						});
 					} else {
 						warn!("Conexão não conseguiu ser aceita");
 					}
