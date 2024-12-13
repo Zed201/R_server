@@ -192,9 +192,9 @@
 
 mod server;
 use server::process;
+use server::locallog::*;
 use clap::*;
-use log::{debug, error, info, warn};
-use server::Locallog::*;
+use log::{debug, error, warn};
 use tokio::net::TcpListener;
 use std::process::exit;
 // use tokio::time::{sleep, Duration};
@@ -203,7 +203,7 @@ use std::process::exit;
 async fn main() {
 	// retrabalhar essas strings
 	let (p, m) = commads();
-
+	debug!("Porta {p} e modo {:?}", m);
 	init_logger();
 	on(p);
 
@@ -223,6 +223,7 @@ async fn main() {
 			_ = async {
 				loop {
 					if let Ok((s, _)) = listener.accept().await{
+						debug!("Nova requisição aceita");
 						tokio::spawn(async move {
 							 process(s).await
 						});

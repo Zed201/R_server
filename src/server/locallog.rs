@@ -57,7 +57,6 @@
 
 //////////////////////////////////////////////////////////
 use chrono::Local;
-use colored::*;
 use colorize::AnsiColor;
 use core::fmt;
 use log::{self, info, warn, Level, LevelFilter};

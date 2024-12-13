@@ -8,6 +8,7 @@ chrono = "0.4.38"
 clap = { version = "4.5.18", features = ["derive"] }
 colored = "2.1.0"
 colorize = "0.1.0"
+http-body-util = "0.1.2"
 hyper = { version = "1.5.1", features = ["full"] }
 hyper-util = { version = "0.1.10", features = ["full"] }
 log = "0.4.22"

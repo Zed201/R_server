@@ -386,36 +386,51 @@
 //     }
 // }
 
-use hyper_util::server::conn::auto;
-use tokio::{net::TcpStream};
-use hyper::server::conn::http2; // fa
-use hyper_util::rt::TokioIo;
+pub mod locallog;
+use log::error;
 
-pub mod Locallog;
-use log::{error};
-use hyper::rt::Executor;
-use hyper::Request;
-use hyper_util::rt::TokioExecutor;
-use hyper::service::service_fn;
-use hyper_util::server::conn::auto;
+use std::convert::Infallible;
+
+use tokio::net::TcpStream;
+
+use hyper_util::{
+    server::conn::auto,
+    rt::{TokioExecutor, TokioIo}
+};
+
+use hyper::{
+    Request, Response, StatusCode,
+    body::Bytes, service::service_fn,
+};
 
 
 pub async fn process(stream: TcpStream){
-    let io = TokioIo::new(stream); // cria uma interface de io com feature
-    // no fim ela implementa o tokio::io e o hyper::io traits
-    // ver um jeito de não fica sempre recriando o builder
-
-    // por enquanto ta geral de tipos
-    // https://docs.rs/hyper-util/latest/hyper_util/server/conn/auto/struct.Builder.html
-    let b = auto::Builder::new(TokioExecutor::new());
-    // https://github.com/hyperium/hyper/blob/master/examples/hello-http2.rs
+    let io = TokioIo::new(stream); 
+    if let Err(e)  = auto::Builder::new(TokioExecutor::new())
+    .serve_connection(io, service_fn(ser)).await {
+        error!("{e}");
+    }
 }
 
-// modelar como um service que retorna uma future
-pub async fn response_service<T>(req: Request<T>){
-    
+use http_body_util::Full;
+
+/*
+Full https://docs.rs/http-body-util/latest/http_body_util/struct.Full.html
+Response https://docs.rs/http/1.0.0/http/response/struct.Response.html
+request https://docs.rs/http/1.0.0/http/request/struct.Request.html
+*/
+async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+    /*
+    [] Verificar a uri
+    [] mandar como bytes
+    [] verificar a melhor forma de mandar esses bytes, seja com o Full ou não
+    [] fazer algum service de tracing para ficar melhor os logs, passando o request antes(implementando o Service)
+    https://docs.rs/hyper/1.4.0/hyper/service/trait.Service.html
+
+     */
+    Ok(
+        Response::new(Full::new(Bytes::from("aaa")))
+    )
 }
 
-// implements ofd https://github.com/hyperium/hyper/blob/master/examples/hello-http2.rs
-// https://hyper.rs/guides/1/init/runtime/
-// talvez não precise de http/2 mas para dar server_push precisa
+// criar um handle para criação de response com o full e verificar se o full é o melhor
