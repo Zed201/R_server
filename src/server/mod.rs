@@ -403,21 +403,28 @@ use hyper::{
     body::Bytes, service::service_fn,
 };
 
+use http_body_util::Full;
+
+use tower::ServiceBuilder;
 
 pub async fn process(stream: TcpStream){
     let io = TokioIo::new(stream); 
+    let l = ServiceBuilder::new().layer(service_fn(ser));
+    // dar um jeito de jntar tudo com tower
+    // ver como vai ficar a parte de http2.0, pois ele não aceita direto
     if let Err(e)  = auto::Builder::new(TokioExecutor::new())
     .serve_connection(io, service_fn(ser)).await {
         error!("{e}");
     }
 }
 
-use http_body_util::Full;
 
 /*
 Full https://docs.rs/http-body-util/latest/http_body_util/struct.Full.html
+Basicamente o full é oque vai representar o body para funcionar com o hyper
 Response https://docs.rs/http/1.0.0/http/response/struct.Response.html
 request https://docs.rs/http/1.0.0/http/request/struct.Request.html
+Bytes https://docs.rs/hyper/latest/hyper/body/struct.Bytes.html
 */
 async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     /*
@@ -428,9 +435,8 @@ async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>,
     https://docs.rs/hyper/1.4.0/hyper/service/trait.Service.html
 
      */
-    Ok(
-        Response::new(Full::new(Bytes::from("aaa")))
-    )
+    // let uri = r.uri().path();
+    let b = Bytes::copy_from_slice(r.uri().path().as_bytes());
+    let r = Response::new(Full::new(b));
+    Ok(r)
 }
-
-// criar um handle para criação de response com o full e verificar se o full é o melhor
