@@ -400,6 +400,8 @@ use hyper::{body::Bytes, service::service_fn, Request, Response};
 
 use http_body_util::Full;
 
+use std::path::Path;
+
 pub async fn process(stream: TcpStream) {
 	let io = TokioIo::new(stream);
 	// ver como vai ficar a parte de http2.0, pois ele não aceita direto
@@ -410,8 +412,6 @@ pub async fn process(stream: TcpStream) {
 		error!("{e}");
 	}
 }
-
-use std::path::Path;
 
 /*
 Full https://docs.rs/http-body-util/latest/http_body_util/struct.Full.html
@@ -434,21 +434,21 @@ async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>,
 	let p = Path::new(uri.path().trim_start_matches('/'));
 	debug!("Path {:?}", p);
 	if p.try_exists().is_ok() {
-		if let Some(n) = p.to_str() {
-			if p.is_file() {
-				info!("Requisitando {}", n);
-				let v = read_fileb(n);
-				return Ok(Response::new(Full::new(v)));
-			} else if p.is_dir() {
-				// deve ter is_dir() pois ele pode acabar entrando aqui se o
-				// try_exist falhar por alguma falta de permissão
-				// criar o html do diretorio
-				if let Ok(page_dir) = read_dir(n) {
-					info!("Pagina '{}' requisitada", n);
-					return Ok(Response::new(Full::new(page_dir)));
-				}
+		// if let Some(n) = p.to_str() {
+		if p.is_file() {
+			info!("Requisitando {:?}", p);
+			let v = read_fileb(p).await;
+			return Ok(Response::new(Full::new(v)));
+		} else if p.is_dir() {
+			// deve ter is_dir() pois ele pode acabar entrando aqui se o
+			// try_exist falhar por alguma falta de permissão
+			// criar o html do diretorio
+			if let Ok(page_dir) = read_dirb(p).await {
+				info!("Pagina '{:?}' requisitada", p);
+				return Ok(Response::new(Full::new(page_dir)));
 			}
 		}
+		// }
 	}
 	warn!("Path não encontrado");
 	// retornar msg de erro
@@ -459,29 +459,46 @@ async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>,
 }
 
 use maud::{html, PreEscaped};
-use std::fs;
-fn read_fileb(name: &str) -> Bytes {
-	if let Ok(v) = fs::read(name) {
+use tokio::fs::{read, read_dir};
+async fn read_fileb(name: &Path) -> Bytes {
+	if let Ok(v) = read(name).await {
 		return Bytes::from(v);
 	}
 	Bytes::new()
 }
 
-fn read_dir(name: &str) -> std::io::Result<Bytes> {
-	let d = fs::read_dir(name)?;
-	let h = html! {
-		h1 { "Directory '" (name) "'" }
-
-	@for e in d {
-	    // o analyzer ta dizendo que não precisa desse if let e seguro usar unwarp
-	    // @if let Ok(e) = e {
-	    @let pa = e.unwrap().path().display().to_string(); // Obtém o caminho do DirEntry como string
-	    @let link = PreEscaped(format!("/{}", pa));
-	    @let name = PreEscaped(pa); // PreEscaped para evitar escape
-	    a href={(link)} {(name)} // Usando o PreEscaped diretamente no href
-		    br;
-	    }
-	// }
-	};
-	Ok(Bytes::from(h.into_string()))
+async fn read_dirb(name: &Path) -> std::io::Result<Bytes> {
+	if let Ok(mut dir) = read_dir(name).await {
+		// nao e um iterator como a versao do std entao modifica
+		let h = html! {
+		    h1 {"Directory '" (name.display()) "'"}
+			@while let Some(entry) = dir.next_entry().await? {
+			@let pa = entry.path().display().to_string(); // pega o path absoluto
+			@let link = PreEscaped(format!("/{}", pa)); // adiciona um / no começo para
+								    // o link ser absoluto
+			@let name = PreEscaped(pa); // Nome do arquivo normal sem " "
+			a href={(link)} {(name)}
+			br;
+		    }
+		};
+		return Ok(Bytes::from(h.into_string()));
+	}
+	Err(std::io::Error::new(
+		std::io::ErrorKind::InvalidData,
+		"Nao deu para ler o diretorio",
+	))
+	// let h = html! {
+	// 	h1 { "Directory '" (name) "'" }
+	//
+	// @for e in d {
+	//     // o analyzer ta dizendo que não precisa desse if let e seguro usar unwarp
+	//     // @if let Ok(e) = e {
+	//     @let pa = e.unwrap().path().display().to_string(); // Obtém o caminho do DirEntry como string
+	//     @let link = PreEscaped(format!("/{}", pa));
+	//     @let name = PreEscaped(pa); // PreEscaped para evitar escape
+	//     a href={(link)} {(name)} // Usando o PreEscaped diretamente no href
+	// 	    br;
+	//     }
+	// // }
+	// };
 }
