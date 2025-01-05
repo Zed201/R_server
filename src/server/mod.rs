@@ -7,8 +7,6 @@
 
 // use build_html::{Html, HtmlContainer, HtmlPage};
 
-
-
 // use std::time::{SystemTime, UNIX_EPOCH};
 
 // // !local de onde o servidor vai ler os arquivos,
@@ -387,37 +385,33 @@
 // }
 
 pub mod locallog;
-use log::error;
+use log::{debug, error, info, warn};
 
 use std::convert::Infallible;
 
 use tokio::net::TcpStream;
 
 use hyper_util::{
-    server::conn::auto,
-    rt::{TokioExecutor, TokioIo}
+	rt::{TokioExecutor, TokioIo},
+	server::conn::auto,
 };
 
-use hyper::{
-    Request, Response, StatusCode,
-    body::Bytes, service::service_fn,
-};
+use hyper::{body::Bytes, service::service_fn, Request, Response};
 
 use http_body_util::Full;
 
-use tower::ServiceBuilder;
-
-pub async fn process(stream: TcpStream){
-    let io = TokioIo::new(stream); 
-    let l = ServiceBuilder::new().layer(service_fn(ser));
-    // dar um jeito de jntar tudo com tower
-    // ver como vai ficar a parte de http2.0, pois ele não aceita direto
-    if let Err(e)  = auto::Builder::new(TokioExecutor::new())
-    .serve_connection(io, service_fn(ser)).await {
-        error!("{e}");
-    }
+pub async fn process(stream: TcpStream) {
+	let io = TokioIo::new(stream);
+	// ver como vai ficar a parte de http2.0, pois ele não aceita direto
+	if let Err(e) = auto::Builder::new(TokioExecutor::new())
+		.serve_connection(io, service_fn(ser))
+		.await
+	{
+		error!("{e}");
+	}
 }
 
+use std::path::Path;
 
 /*
 Full https://docs.rs/http-body-util/latest/http_body_util/struct.Full.html
@@ -427,16 +421,67 @@ request https://docs.rs/http/1.0.0/http/request/struct.Request.html
 Bytes https://docs.rs/hyper/latest/hyper/body/struct.Bytes.html
 */
 async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-    /*
-    [] Verificar a uri
-    [] mandar como bytes
-    [] verificar a melhor forma de mandar esses bytes, seja com o Full ou não
-    [] fazer algum service de tracing para ficar melhor os logs, passando o request antes(implementando o Service)
-    https://docs.rs/hyper/1.4.0/hyper/service/trait.Service.html
+	/*
+	[] Verificar a uri
+	[] mandar como bytes
+	[] verificar a melhor forma de mandar esses bytes, seja com o Full ou não
+	[] fazer algum service de tracing para ficar melhor os logs, passando o request antes(implementando o Service)
+	https://docs.rs/hyper/1.4.0/hyper/service/trait.Service.html
 
-     */
-    // let uri = r.uri().path();
-    let b = Bytes::copy_from_slice(r.uri().path().as_bytes());
-    let r = Response::new(Full::new(b));
-    Ok(r)
+	 */
+	let uri = r.uri();
+	debug!("Uri '{:?}'", uri);
+	let p = Path::new(uri.path().trim_start_matches('/'));
+	debug!("Path {:?}", p);
+	if p.try_exists().is_ok() {
+		if let Some(n) = p.to_str() {
+			if p.is_file() {
+				info!("Requisitando {}", n);
+				let v = read_fileb(n);
+				return Ok(Response::new(Full::new(v)));
+			} else if p.is_dir() {
+				// deve ter is_dir() pois ele pode acabar entrando aqui se o
+				// try_exist falhar por alguma falta de permissão
+				// criar o html do diretorio
+				if let Ok(page_dir) = read_dir(n) {
+					info!("Pagina '{}' requisitada", n);
+					return Ok(Response::new(Full::new(page_dir)));
+				}
+			}
+		}
+	}
+	warn!("Path não encontrado");
+	// retornar msg de erro
+	let error_page: maud::Markup = html! {
+	    h1 { "Resource " (format!("{:?}", p)) " Not Found" }
+	};
+	Ok(Response::new(Full::new(Bytes::from(error_page.into_string()))))
+}
+
+use maud::{html, PreEscaped};
+use std::fs;
+fn read_fileb(name: &str) -> Bytes {
+	if let Ok(v) = fs::read(name) {
+		return Bytes::from(v);
+	}
+	Bytes::new()
+}
+
+fn read_dir(name: &str) -> std::io::Result<Bytes> {
+	let d = fs::read_dir(name)?;
+	let h = html! {
+		h1 { "Directory '" (name) "'" }
+
+	@for e in d {
+	    // o analyzer ta dizendo que não precisa desse if let e seguro usar unwarp
+	    // @if let Ok(e) = e {
+	    @let pa = e.unwrap().path().display().to_string(); // Obtém o caminho do DirEntry como string
+	    @let link = PreEscaped(format!("/{}", pa));
+	    @let name = PreEscaped(pa); // PreEscaped para evitar escape
+	    a href={(link)} {(name)} // Usando o PreEscaped diretamente no href
+		    br;
+	    }
+	// }
+	};
+	Ok(Bytes::from(h.into_string()))
 }
