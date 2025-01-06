@@ -2,15 +2,15 @@ mod server;
 use clap::*;
 use log::{debug, error, warn};
 use server::locallog::*;
-use server::process_web;
+use server::{process_live, process_web};
 use std::process::exit;
 use tokio::net::TcpListener;
 // use tokio::time::{sleep, Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Mode {
-	WEB,
-	LIVE,
+	Web,
+	Live,
 }
 
 #[tokio::main]
@@ -27,26 +27,43 @@ async fn main() {
 
 	if let Ok(listener) = TcpListener::bind(format!("0.0.0.0:{p}")).await {
 		tokio::select! {
-			_ = async {
-				if tokio::signal::ctrl_c().await.is_ok() {
-					off();
-				}
-			} => {}, // get out from ctrl+C
-			// _ = timer => {},
-			_ = async {
-				loop {
-					if let Ok((s, _)) = listener.accept().await{
-						debug!("Nova requisição aceita");
-						tokio::spawn(async move {
-							 process_web(s).await
-						});
-					} else {
-						warn!("Conexão não conseguiu ser aceita");
+				    _ = async {
+					if tokio::signal::ctrl_c().await.is_ok() {
+					    off();
 					}
+					} => {}, // get out from ctrl+C
+					// _ = timer => {},
+					_ = async {
+					    match m {
+						Mode::Web => {
+						    loop {
+							if let Ok((s, _)) = listener.accept().await{
+							    debug!("Nova requisi├º├úo aceita");
+							    tokio::spawn(async move {
+								process_web(s).await
+							    });
+							} else {
+							    warn!("Conexao nao foi aceita");
+							}
+						    }
+						},
+						Mode::Live => {
+						    loop {
+		if let Ok((s, _)) = listener.accept().await{
+							    debug!("Nova requisiÔö£┬║Ôö£├║o aceita");
+							    tokio::spawn(async move {
+								process_live(s).await
+							    });
+							} else {
+							    warn!("Conexao nao foi aceita");
+							}
+
+						    }
+						},
+					    }
+
+				    } => {}
 				}
-			} => {}
-		}
-		// TODO: Fazer parte do live com tungstenite?
 	} else {
 		error!("Erro ao bindar a porta especificada");
 		exit(1);
@@ -56,9 +73,9 @@ async fn main() {
 // cli args
 fn commads() -> (u16, Mode) {
 	// TODO: retrabalhar essas strings
-	let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", 1);
+	let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo Live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", 1);
 	let mode_str: &str =
-		"Escolha entre os modos web(servidor http normal) e o \nlive(servidor funcionando como live server)\n";
+		"Escolha entre os modos web(servidor http normal) e o \nLive(servidor funcionando como live server)\n";
 	let cmd = Command::new("R_server")
 		.args(&[
 			Arg::new("port_no_flag")
@@ -94,6 +111,6 @@ fn commads() -> (u16, Mode) {
 		.get_one::<Mode>("mode")
 		.or_else(|| cmd.get_one::<Mode>("mode_no_flag"))
 		.cloned()
-		.unwrap_or(Mode::WEB);
+		.unwrap_or(Mode::Live);
 	(_porta, _mode)
 }

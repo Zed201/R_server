@@ -61,7 +61,11 @@ use hyper_util::{
 	server::conn::auto,
 };
 
-use hyper::{body::Bytes, service::service_fn, Request, Response};
+use hyper::{
+	body::{Body, Bytes},
+	service::service_fn,
+	Request, Response,
+};
 
 use http_body_util::Full;
 
@@ -75,6 +79,57 @@ pub async fn process_web(stream: TcpStream) {
 	{
 		error!("{e}");
 	}
+}
+
+pub async fn process_live(stream: TcpStream) {
+	let io = TokioIo::new(stream);
+	if let Err(e) = auto::Builder::new(TokioExecutor::new())
+		.serve_connection(io, service_fn(reload))
+		.await
+	{
+		error!("{e}");
+	}
+}
+
+// use async_stream;
+// use reqwest::Body;
+
+async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
+	let messages = vec![
+		"Hello",
+		"<meta http-equiv=\"refresh\" content=\"1\">",
+		"<script>console.log('oi')</script>",
+		"World",
+		"From",
+		"Rust",
+	];
+	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode também mandar
+	// um html de reload
+	//  unfold: https://docs.rs/futures-util-preview/latest/futures_util/stream/fn.unfold.html
+	// body https://docs.rs/reqwest/latest/reqwest/struct.Body.html
+	// notify  https://docs.rs/notify/latest/notify/
+
+	let stre = futures_util::stream::unfold(messages.into_iter(), |mut iter| async {
+		tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+		if let Some(msg) = iter.next() {
+			let msg = format!("{}\n\n", msg);
+			// organizar melhor isso aqui
+			return Some((Ok::<Bytes, String>(Bytes::from(msg)), iter));
+		}
+		return None;
+	});
+
+	let t = reqwest::Body::wrap_stream(stre);
+	return Ok(Response::builder()
+		.header("Content-Type", "text/event-stream")
+		.header("Cache-Control", "no-cache")
+		.header("Connection", "keep-alive")
+		.body(t)
+		.unwrap());
+}
+
+fn send_refresh() -> Response<reqwest::Body> {
+	todo!();
 }
 
 /*

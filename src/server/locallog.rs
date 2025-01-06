@@ -81,10 +81,9 @@ pub fn init_logger() {
 }
 
 pub fn on(port: u16) {
-	info!("Servidor acessível em http://0.0.0.0:{port}");
+	info!("Servidor acessível em http://localhost:{port}");
 }
 
 pub fn off() {
 	warn!("Desligando o servidor")
 }
-
