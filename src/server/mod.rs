@@ -91,43 +91,90 @@ pub async fn process_live(stream: TcpStream) {
 	}
 }
 
-// use async_stream;
 // use reqwest::Body;
+use std::path::PathBuf;
 
 async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
-	let messages = vec![
-		"Hello",
-		"<meta http-equiv=\"refresh\" content=\"1\">",
-		"<script>console.log('oi')</script>",
-		"World",
-		"From",
-		"Rust",
-	];
-	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode também mandar
+	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode tamb├®m mandar
 	// um html de reload
 	//  unfold: https://docs.rs/futures-util-preview/latest/futures_util/stream/fn.unfold.html
 	// body https://docs.rs/reqwest/latest/reqwest/struct.Body.html
 	// notify  https://docs.rs/notify/latest/notify/
 
-	let stre = futures_util::stream::unfold(messages.into_iter(), |mut iter| async {
-		tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-		if let Some(msg) = iter.next() {
-			let msg = format!("{}\n\n", msg);
-			// organizar melhor isso aqui
-			return Some((Ok::<Bytes, String>(Bytes::from(msg)), iter));
-		}
-		return None;
-	});
+	// usar isso para dar append em alguma junto dos dados
+	//
+	// Redirecionar apenas os html para aqui, os outros source ele retorna com ser normal
+	//	// mas adiciona ao hashmap de mudan├ºas, ai basicamente ele da hot reload quando ele
+	//	notifica alguma mudan├ºa
+	// toda essa pataquada é por causa do borred
+	let uri_string = r.uri().path().to_string();
+	debug!("Uri '{:?}'", uri_string);
+	let trimmed = uri_string.trim_start_matches('/').to_string();
+	let p = PathBuf::from(trimmed);
+	debug!("Path {:?}", p);
+	// se ele n├úo for html ele responde normal
+	// TODO: Implementar o outo reload para outros alem de html
+	// TODO: Dar um jeito de modularizar esse codigo com o do ser
+	let p1 = p.clone();
+	if p.try_exists().is_ok() {
+		if let Some(ex) = p.extension() {
+			if ex != "html" && (p.is_file() || p.is_dir()) {
+				// TODO: Melhorar essa condi├º├úo
+				if p.is_file() {
+					info!("Requisitando {:?}", p);
+					let v = read_fileb(p.as_path()).await;
+					let rq = reqwest::Body::from(v);
+					return Ok(Response::builder().body(rq).unwrap());
+					// return Ok(Response::new(Full::new(v)));
+				} else if p.is_dir() {
+					// deve ter is_dir() pois ele pode acabar entrando aqui se o
+					// try_exist falhar por alguma falta de permissÔö£├║o
+					// criar o html do diretorio
+					if let Ok(page_dir) = read_dirb(p.as_path()).await {
+						info!("Pagina '{:?}' requisitada", p);
+						return Ok(Response::builder()
+							.body(reqwest::Body::from(page_dir))
+							.unwrap());
+					}
+				}
+			}
+			// se for html ele manda um stream para fazer o auto reload
+			let stream = async_stream::stream! {
+			    let file_initial = read_fileb(p.as_path()).await;
+			    if let Ok(v) = String::from_utf8(file_initial.to_vec()) {
+				yield Ok::<_,Infallible>(v);
+				debug!("Arquivo html mandando na stream");
+			    }
+			    // TODO: Trocar isso para o trigger da mudan├ºa dos arquivos
+			    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-	let t = reqwest::Body::wrap_stream(stre);
-	return Ok(Response::builder()
-		.header("Content-Type", "text/event-stream")
-		.header("Cache-Control", "no-cache")
-		.header("Connection", "keep-alive")
-		.body(t)
-		.unwrap());
+			    let update_chunk = String::from("<script>window.location.reload();</script>");
+			    debug!("Script de reload envidado");
+			    yield Ok::<_, Infallible>(update_chunk);
+
+			};
+			let b = reqwest::Body::wrap_stream(stream);
+			if let Ok(r) = Response::builder()
+				.header("Content-Type", "text/html")
+				.header("Cache-Control", "no-cache")
+				.header("Connection", "keep-alive")
+				.body(b)
+			{
+				return Ok(r);
+			}
+		}
+	}
+	warn!("Path nao encontrado");
+	// retornar msg de erro
+	let error_page: maud::Markup = html! {
+	    h1 { "Resource " (format!("{:?}", p1)) " Not Found" }
+	};
+	Ok(Response::builder()
+		.body(reqwest::Body::from(error_page.into_string()))
+		.unwrap())
 }
 
+#[warn(dead_code)]
 fn send_refresh() -> Response<reqwest::Body> {
 	todo!();
 }
