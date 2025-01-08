@@ -1,5 +1,6 @@
 // // procurar o aquivo index caso o request seja /, caso não encontre o index.html, retornar um html qualquer(o ultimo na iteração)
 // // caso não tenha html ele retorna vazio, aí envia error 404
+// TODO: reimplementar isso daqui
 // fn search_index() -> String {
 //     if let Ok(dir) = fs::read_dir(FILE_SOURCE_PATH) {
 //         let mut tmp: String = String::new();
@@ -23,32 +24,6 @@
 //     String::new()
 // }
 
-// pub fn soc_con(stream: &mut TcpStream, set: &mut HashMap<String, SystemTime>) {
-//     match Request::new(stream) {
-//         Ok(req) => {
-//             print_rq(&req);
-//             // não tem suporte para post e tal
-//             let mut r = req.data["required"].clone();
-//             if r.len() == 0 {
-//                 // melhorar isso
-//                 r = search_index();
-//             }
-//             // TODO: Melhorar esses métodos extensos
-//             let _ = file_sender(stream, &r);
-//             // tratar erros
-//             //
-//             if let Ok(l) = Path::new(&format!("{}{}", FILE_SOURCE_PATH, r)).metadata(){
-//                 if let Ok(l) = l.modified() {
-//                     set.insert(r, l);
-//                 }
-//             }
-//         }
-//         Err(s) => {
-//             warning(&s);
-//         }
-//     }
-// }
-
 pub mod locallog;
 use log::{debug, error, info, warn};
 
@@ -61,15 +36,11 @@ use hyper_util::{
 	server::conn::auto,
 };
 
-use hyper::{
-	body::{Body, Bytes},
-	service::service_fn,
-	Request, Response,
-};
+use hyper::{body::Bytes, service::service_fn, Request, Response};
 
 use http_body_util::Full;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub async fn process_web(stream: TcpStream) {
 	let io = TokioIo::new(stream);
@@ -92,7 +63,6 @@ pub async fn process_live(stream: TcpStream) {
 }
 
 // use reqwest::Body;
-use std::path::PathBuf;
 
 async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
 	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode tamb├®m mandar
@@ -107,15 +77,14 @@ async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::B
 	//	// mas adiciona ao hashmap de mudan├ºas, ai basicamente ele da hot reload quando ele
 	//	notifica alguma mudan├ºa
 	// toda essa pataquada é por causa do borred
-	let uri_string = r.uri().path().to_string();
-	debug!("Uri '{:?}'", uri_string);
-	let trimmed = uri_string.trim_start_matches('/').to_string();
-	let p = PathBuf::from(trimmed);
+	let uri = r.uri();
+	debug!("Uri '{:?}'", uri);
+	let p = PathBuf::from(uri.path().trim_start_matches('/'));
 	debug!("Path {:?}", p);
+	let p1 = p.clone();
 	// se ele n├úo for html ele responde normal
 	// TODO: Implementar o outo reload para outros alem de html
 	// TODO: Dar um jeito de modularizar esse codigo com o do ser
-	let p1 = p.clone();
 	if p.try_exists().is_ok() {
 		if let Some(ex) = p.extension() {
 			if ex != "html" && (p.is_file() || p.is_dir()) {
@@ -145,8 +114,12 @@ async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::B
 				yield Ok::<_,Infallible>(v);
 				debug!("Arquivo html mandando na stream");
 			    }
-			    // TODO: Trocar isso para o trigger da mudan├ºa dos arquivos
-			    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+			    // TODO:Trocar isso para o trigger da mudan├ºa dos arquivos
+			    // Usar o notify como watcher para arquivos, ver alternativa de apenas
+			    // analisar todos os arquivos ou só os requisitados, ambos imagino ter
+			    // que trazer alguma estrutura compartilhada para essa funcao, no caso
+			    // o channel para receber, que não deve ser oneshot
+			    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
 			    let update_chunk = String::from("<script>window.location.reload();</script>");
 			    debug!("Script de reload envidado");
