@@ -38,24 +38,31 @@ use hyper_util::{
 
 use hyper::{body::Bytes, service::service_fn, Request, Response};
 
-use http_body_util::Full;
-
 use std::path::{Path, PathBuf};
 
 pub async fn process_web(stream: TcpStream) {
 	let io = TokioIo::new(stream);
 	if let Err(e) = auto::Builder::new(TokioExecutor::new())
-		.serve_connection(io, service_fn(ser))
+		.serve_connection(io, service_fn(normal_web_server))
 		.await
 	{
 		error!("{e}");
 	}
 }
 
+// TODO: Em pastas ele não mostra o erro de notfound
+async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
+	let p = req_uri(r);
+	if p.try_exists().is_ok() {
+		return Ok(send_file(&p).await);
+	}
+	Ok(not_found(&p))
+}
+
 pub async fn process_live(stream: TcpStream) {
 	let io = TokioIo::new(stream);
 	if let Err(e) = auto::Builder::new(TokioExecutor::new())
-		.serve_connection(io, service_fn(reload))
+		.serve_connection(io, service_fn(reload_server))
 		.await
 	{
 		error!("{e}");
@@ -64,7 +71,7 @@ pub async fn process_live(stream: TcpStream) {
 
 // use reqwest::Body;
 
-async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
+async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
 	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode tamb├®m mandar
 	// um html de reload
 	//  unfold: https://docs.rs/futures-util-preview/latest/futures_util/stream/fn.unfold.html
@@ -77,11 +84,8 @@ async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::B
 	//	// mas adiciona ao hashmap de mudan├ºas, ai basicamente ele da hot reload quando ele
 	//	notifica alguma mudan├ºa
 	// toda essa pataquada é por causa do borred
-	let uri = r.uri();
-	debug!("Uri '{:?}'", uri);
-	let p = PathBuf::from(uri.path().trim_start_matches('/'));
-	debug!("Path {:?}", p);
-	let p1 = p.clone();
+	let p = req_uri(r);
+	let p2 = p.clone();
 	// se ele n├úo for html ele responde normal
 	// TODO: Implementar o outo reload para outros alem de html
 	// TODO: Dar um jeito de modularizar esse codigo com o do ser
@@ -89,23 +93,7 @@ async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::B
 		if let Some(ex) = p.extension() {
 			if ex != "html" && (p.is_file() || p.is_dir()) {
 				// TODO: Melhorar essa condi├º├úo
-				if p.is_file() {
-					info!("Requisitando {:?}", p);
-					let v = read_fileb(p.as_path()).await;
-					let rq = reqwest::Body::from(v);
-					return Ok(Response::builder().body(rq).unwrap());
-					// return Ok(Response::new(Full::new(v)));
-				} else if p.is_dir() {
-					// deve ter is_dir() pois ele pode acabar entrando aqui se o
-					// try_exist falhar por alguma falta de permissÔö£├║o
-					// criar o html do diretorio
-					if let Ok(page_dir) = read_dirb(p.as_path()).await {
-						info!("Pagina '{:?}' requisitada", p);
-						return Ok(Response::builder()
-							.body(reqwest::Body::from(page_dir))
-							.unwrap());
-					}
-				}
+				return Ok(send_file(&p).await);
 			}
 			// se for html ele manda um stream para fazer o auto reload
 			let stream = async_stream::stream! {
@@ -137,56 +125,46 @@ async fn reload(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::B
 			}
 		}
 	}
-	warn!("Path nao encontrado");
-	// retornar msg de erro
-	let error_page: maud::Markup = html! {
-	    h1 { "Resource " (format!("{:?}", p1)) " Not Found" }
-	};
-	Ok(Response::builder()
-		.body(reqwest::Body::from(error_page.into_string()))
-		.unwrap())
+	Ok(not_found(&p2))
 }
 
-#[warn(dead_code)]
-fn send_refresh() -> Response<reqwest::Body> {
-	todo!();
-}
-
-/*
-Full https://docs.rs/http-body-util/latest/http_body_util/struct.Full.html
-Basicamente o full é oque vai representar o body para funcionar com o hyper
-Response https://docs.rs/http/1.0.0/http/response/struct.Response.html
-request https://docs.rs/http/1.0.0/http/request/struct.Request.html
-Bytes https://docs.rs/hyper/latest/hyper/body/struct.Bytes.html
-*/
-async fn ser(r: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-	let uri = r.uri();
-	debug!("Uri '{:?}'", uri);
-	let p = Path::new(uri.path().trim_start_matches('/'));
-	debug!("Path {:?}", p);
-	if p.try_exists().is_ok() {
-		// if let Some(n) = p.to_str() {
-		if p.is_file() {
-			info!("Requisitando {:?}", p);
-			let v = read_fileb(p).await;
-			return Ok(Response::new(Full::new(v)));
-		} else if p.is_dir() {
-			// deve ter is_dir() pois ele pode acabar entrando aqui se o
-			// try_exist falhar por alguma falta de permissão
-			// criar o html do diretorio
-			if let Ok(page_dir) = read_dirb(p).await {
-				info!("Pagina '{:?}' requisitada", p);
-				return Ok(Response::new(Full::new(page_dir)));
-			}
+async fn send_file(p: &PathBuf) -> Response<reqwest::Body> {
+	if p.is_file() {
+		info!("Requisitando {:?}", p);
+		let v = read_fileb(p).await;
+		return response_builder(v);
+	} else if p.is_dir() {
+		// deve ter is_dir() pois ele pode acabar entrando aqui se o
+		// try_exist falhar por alguma falta de permiss├úo
+		// criar o html do diretorio
+		if let Ok(page_dir) = read_dirb(p).await {
+			info!("Pagina '{:?}' requisitada", p);
+			return response_builder(page_dir);
 		}
-		// }
 	}
-	warn!("Path não encontrado");
+	Response::default()
+}
+
+fn not_found(p: &PathBuf) -> Response<reqwest::Body> {
+	warn!("Path nao encontrado");
 	// retornar msg de erro
 	let error_page: maud::Markup = html! {
 	    h1 { "Resource " (format!("{:?}", p)) " Not Found" }
 	};
-	Ok(Response::new(Full::new(Bytes::from(error_page.into_string()))))
+	response_builder(Bytes::from(error_page.into_string()))
+}
+
+fn req_uri(r: Request<hyper::body::Incoming>) -> PathBuf {
+	let uri = r.uri();
+	debug!("Uri '{:?}'", uri);
+	let p = PathBuf::from(uri.path().trim_start_matches('/'));
+	debug!("Path {:?}", p);
+	p
+}
+
+// criador modularizado
+fn response_builder(b: Bytes) -> Response<reqwest::Body> {
+	Response::new(reqwest::Body::from(b))
 }
 
 use maud::{html, PreEscaped};
