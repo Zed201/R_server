@@ -34,10 +34,18 @@ async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response
 	Ok(not_found(&p))
 }
 
-pub async fn process_live(stream: TcpStream) {
+use tokio::sync::broadcast::{Receiver, Sender};
+pub async fn process_live(stream: TcpStream, tx: Sender<u8>) {
 	let io = TokioIo::new(stream);
 	if let Err(e) = auto::Builder::new(TokioExecutor::new())
-		.serve_connection(io, service_fn(reload_server))
+		.serve_connection(
+			io,
+			service_fn(|req| {
+				// gambiarra por causa do borrowchekcer
+				let v = tx.subscribe();
+				async move { reload_server(req, v).await }
+			}),
+		)
 		.await
 	{
 		error!("{e}");
@@ -46,7 +54,10 @@ pub async fn process_live(stream: TcpStream) {
 
 // use reqwest::Body;
 
-async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
+async fn reload_server(
+	r: Request<hyper::body::Incoming>,
+	mut rx: Receiver<u8>,
+) -> Result<Response<reqwest::Body>, Infallible> {
 	// testar com testo pelo send refresh, pois ele ta empilhando os dados, pode tamb├®m mandar
 	// um html de reload
 	//  unfold: https://docs.rs/futures-util-preview/latest/futures_util/stream/fn.unfold.html
@@ -82,7 +93,9 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 			    // analisar todos os arquivos ou só os requisitados, ambos imagino ter
 			    // que trazer alguma estrutura compartilhada para essa funcao, no caso
 			    // o channel para receber, que não deve ser oneshot
-			    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+			    // tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+			    let _ = rx.recv().await;
 
 			    let update_chunk = String::from("<script>window.location.reload();</script>");
 			    debug!("Reload code send");

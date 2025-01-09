@@ -1,10 +1,13 @@
 mod server;
 use clap::*;
 use log::{debug, error, warn};
+use notify::{recommended_watcher, RecursiveMode, Watcher};
 use server::locallog::*;
 use server::{process_live, process_web};
+use std::path::Path;
 use std::process::exit;
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 // use tokio::time::{sleep, Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -48,11 +51,29 @@ async fn main() {
 				    }
 				},
 				Mode::Live => {
+				    let (tx, _) = broadcast::channel::<u8>(1);
+				    let tx2 = tx.clone();
+				    if let Ok(mut watcher) = recommended_watcher(move |_| {
+					    let tx = tx.clone();
+					tokio::task::block_in_place(|| {
+						loop{ // erro nisso, dado reload direto assim
+						let _ = tx.send(1); // dando erro no sendo, provav
+					    }
+					});
+				    }) {
+					let atual = Path::new(".");
+					if watcher.watch(atual, RecursiveMode::Recursive).is_err() {
+					    error!("Erro while set the watcher");
+					}
+				    } else {
+					error!("Erro while create the watcher");
+				    }
 				    loop {
-					    if let Ok((s, _)) = listener.accept().await{
+					if let Ok((s, _)) = listener.accept().await{
 					    debug!("New request accepted");
+					    let t = tx2.clone();
 					    tokio::spawn(async move {
-						process_live(s).await
+						process_live(s, t).await
 					    });
 					} else {
 					    warn!("Connection not accepted");
