@@ -27,43 +27,43 @@ async fn main() {
 
 	if let Ok(listener) = TcpListener::bind(format!("0.0.0.0:{p}")).await {
 		tokio::select! {
-				    _ = async {
-					if tokio::signal::ctrl_c().await.is_ok() {
-					    off();
+		    _ = async {
+			if tokio::signal::ctrl_c().await.is_ok() {
+			    off();
+			}
+			} => {}, // get out from ctrl+C
+			// _ = timer => {},
+			_ = async {
+			    match m {
+				Mode::Web => {
+				    loop {
+					if let Ok((s, _)) = listener.accept().await{
+					    debug!("New request accepted");
+					    tokio::spawn(async move {
+						process_web(s).await
+					    });
+					} else {
+					    warn!("Connection not accepted");
 					}
-					} => {}, // get out from ctrl+C
-					// _ = timer => {},
-					_ = async {
-					    match m {
-						Mode::Web => {
-						    loop {
-							if let Ok((s, _)) = listener.accept().await{
-							    debug!("Nova requisi├º├úo aceita");
-							    tokio::spawn(async move {
-								process_web(s).await
-							    });
-							} else {
-							    warn!("Conexao nao foi aceita");
-							}
-						    }
-						},
-						Mode::Live => {
-						    loop {
-		if let Ok((s, _)) = listener.accept().await{
-							    debug!("Nova requisiÔö£┬║Ôö£├║o aceita");
-							    tokio::spawn(async move {
-								process_live(s).await
-							    });
-							} else {
-							    warn!("Conexao nao foi aceita");
-							}
+				    }
+				},
+				Mode::Live => {
+				    loop {
+					    if let Ok((s, _)) = listener.accept().await{
+					    debug!("New request accepted");
+					    tokio::spawn(async move {
+						process_live(s).await
+					    });
+					} else {
+					    warn!("Connection not accepted");
+					}
 
-						    }
-						},
-					    }
+				    }
+				},
+			    }
 
-				    } => {}
-				}
+		    } => {}
+		}
 	} else {
 		error!("Erro ao bindar a porta especificada");
 		exit(1);
@@ -111,6 +111,6 @@ fn commads() -> (u16, Mode) {
 		.get_one::<Mode>("mode")
 		.or_else(|| cmd.get_one::<Mode>("mode_no_flag"))
 		.cloned()
-		.unwrap_or(Mode::Live);
+		.unwrap_or(Mode::Web);
 	(_porta, _mode)
 }

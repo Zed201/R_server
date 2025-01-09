@@ -1,29 +1,3 @@
-// // procurar o aquivo index caso o request seja /, caso não encontre o index.html, retornar um html qualquer(o ultimo na iteração)
-// // caso não tenha html ele retorna vazio, aí envia error 404
-// TODO: reimplementar isso daqui
-// fn search_index() -> String {
-//     if let Ok(dir) = fs::read_dir(FILE_SOURCE_PATH) {
-//         let mut tmp: String = String::new();
-//         for i in dir {
-//             if let Ok(p) = i {
-//                 let p = p.path();
-//                 if p.is_file() {
-//                     let d = p.file_name().unwrap().to_str().unwrap();
-//                     let t = get_file_type(d);
-//                     if d == "index.html" {
-//                         return String::from("index.html");
-//                     } else if t == HTML {
-//                         tmp = d.to_string();
-//                     }
-
-//                 }
-//             }
-//         }
-//         return tmp;
-//     }
-//     String::new()
-// }
-
 pub mod locallog;
 use log::{debug, error, info, warn};
 
@@ -52,8 +26,9 @@ pub async fn process_web(stream: TcpStream) {
 
 // TODO: Em pastas ele não mostra o erro de notfound
 async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
-	let p = req_uri(r);
-	if p.try_exists().is_ok() {
+	let p = req_uri(r).await;
+	if p.metadata().is_ok() {
+		debug!("Arquivo existe");
 		return Ok(send_file(&p).await);
 	}
 	Ok(not_found(&p))
@@ -84,12 +59,12 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 	//	// mas adiciona ao hashmap de mudan├ºas, ai basicamente ele da hot reload quando ele
 	//	notifica alguma mudan├ºa
 	// toda essa pataquada é por causa do borred
-	let p = req_uri(r);
+	let p = req_uri(r).await;
 	let p2 = p.clone();
 	// se ele n├úo for html ele responde normal
 	// TODO: Implementar o outo reload para outros alem de html
 	// TODO: Dar um jeito de modularizar esse codigo com o do ser
-	if p.try_exists().is_ok() {
+	if p.metadata().is_ok() {
 		if let Some(ex) = p.extension() {
 			if ex != "html" && (p.is_file() || p.is_dir()) {
 				// TODO: Melhorar essa condi├º├úo
@@ -100,7 +75,7 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 			    let file_initial = read_fileb(p.as_path()).await;
 			    if let Ok(v) = String::from_utf8(file_initial.to_vec()) {
 				yield Ok::<_,Infallible>(v);
-				debug!("Arquivo html mandando na stream");
+				debug!("Html file send");
 			    }
 			    // TODO:Trocar isso para o trigger da mudan├ºa dos arquivos
 			    // Usar o notify como watcher para arquivos, ver alternativa de apenas
@@ -110,7 +85,8 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 			    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
 			    let update_chunk = String::from("<script>window.location.reload();</script>");
-			    debug!("Script de reload envidado");
+			    debug!("Reload code send");
+			    info!("Reload");
 			    yield Ok::<_, Infallible>(update_chunk);
 
 			};
@@ -129,36 +105,62 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 }
 
 async fn send_file(p: &PathBuf) -> Response<reqwest::Body> {
+	debug!("Path: {:?} - send_file", p);
 	if p.is_file() {
-		info!("Requisitando {:?}", p);
+		info!("Request file {:?}", p);
 		let v = read_fileb(p).await;
 		return response_builder(v);
 	} else if p.is_dir() {
 		// deve ter is_dir() pois ele pode acabar entrando aqui se o
 		// try_exist falhar por alguma falta de permiss├úo
 		// criar o html do diretorio
+		//mesmo tirandoo try_exist e colocando o metadate deixei desse jeito aqui
 		if let Ok(page_dir) = read_dirb(p).await {
-			info!("Pagina '{:?}' requisitada", p);
+			info!("Directory '{:?}' requested", p);
 			return response_builder(page_dir);
 		}
 	}
+	warn!("Blank file send");
 	Response::default()
 }
 
 fn not_found(p: &PathBuf) -> Response<reqwest::Body> {
-	warn!("Path nao encontrado");
+	warn!("Path {:?} not founded", p);
 	// retornar msg de erro
 	let error_page: maud::Markup = html! {
-	    h1 { "Resource " (format!("{:?}", p)) " Not Found" }
+	    h1 { "Resource " (format!("{:?}", p)) " not Found" }
 	};
 	response_builder(Bytes::from(error_page.into_string()))
 }
 
-fn req_uri(r: Request<hyper::body::Incoming>) -> PathBuf {
+async fn req_uri(r: Request<hyper::body::Incoming>) -> PathBuf {
 	let uri = r.uri();
-	debug!("Uri '{:?}'", uri);
+	debug!("Uri '{:?}' - req_uri", uri);
+	if uri == "/" {
+		let mut tmp_p = PathBuf::default();
+		// pesquisar o index.html ou qualquer html se não achar o index dentro do /
+		if let Ok(mut dir) = read_dir("./").await {
+			while let Ok(Some(entry)) = dir.next_entry().await {
+				let p = entry.path();
+				if let Some(n) = p.file_name() {
+					if n == "index.html" {
+						debug!("Found index.html");
+						return p;
+					}
+				}
+				if let Some(e) = p.extension() {
+					if e == "html" {
+						tmp_p = p;
+					}
+				}
+			}
+			// se ele nao achar html ele vai retornar um um resource not found
+			debug!("Returning other html");
+			return tmp_p;
+		}
+	}
 	let p = PathBuf::from(uri.path().trim_start_matches('/'));
-	debug!("Path {:?}", p);
+	debug!("Path {:?} - req_uri", p);
 	p
 }
 
@@ -194,6 +196,6 @@ async fn read_dirb(name: &Path) -> std::io::Result<Bytes> {
 	}
 	Err(std::io::Error::new(
 		std::io::ErrorKind::InvalidData,
-		"Nao deu para ler o diretorio",
+		"Cannot read the directory",
 	))
 }
