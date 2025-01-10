@@ -41,7 +41,7 @@ static MAX_LEVEL: Lazy<LevelFilter> = Lazy::new(|| match env::var("LOG") {
 	},
 	Err(_) => LEVEL_DEFAULT,
 });
-static LEVEL_DEFAULT: LevelFilter = LevelFilter::Info;
+static LEVEL_DEFAULT: LevelFilter = LevelFilter::Debug;
 
 // personalizado para print
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug)]

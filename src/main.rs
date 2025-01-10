@@ -1,7 +1,7 @@
 mod server;
 use clap::*;
-use log::{debug, error, warn};
-use notify::{recommended_watcher, RecursiveMode, Watcher};
+use log::{debug, error, info, warn};
+use notify::{Config, Event, INotifyWatcher, RecommendedWatcher, RecursiveMode, Watcher};
 use server::locallog::*;
 use server::{process_live, process_web};
 use std::path::Path;
@@ -21,6 +21,7 @@ async fn main() {
 	let (p, m) = commads();
 	debug!("Porta {p} e modo {:?}", m);
 	init_logger();
+
 	on(p);
 
 	// codigo de timer pronto para testar algo
@@ -51,29 +52,39 @@ async fn main() {
 				    }
 				},
 				Mode::Live => {
-				    let (tx, _) = broadcast::channel::<u8>(1);
-				    let tx2 = tx.clone();
-				    if let Ok(mut watcher) = recommended_watcher(move |_| {
-					    let tx = tx.clone();
-					tokio::task::block_in_place(|| {
-						loop{ // erro nisso, dado reload direto assim
-						let _ = tx.send(1); // dando erro no sendo, provav
+
+				let path = Path::new(".");
+
+				    let (tx, rx) = std::sync::mpsc::channel();
+				    // tente fazer sem os unwarp, mas por algum motivo nao vai com if let,
+				    // tentei ate em outro arquivo/projeto, provavelmente por incompetencia
+				    // minha mas fazer oq
+				    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
+				    watcher.watch(path.as_ref(), RecursiveMode::Recursive).unwrap();
+
+				    let (ttx, _) = tokio::sync::broadcast::channel(100); // se for
+				    // trocar para mpsc deve trocar as implementações para arc
+				    let ttx2 = ttx.clone();
+				    tokio::spawn(async move {
+					while let Ok(i) = rx.recv() { // vai servir como broadcast manual pois o notify
+					    // não aceita o tokio::broadcast
+					    if let Ok(r) = i {
+						if matches!(r.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)){
+						    debug!("modificou");
+						    match ttx2.send(1) { // nao ta envidando por
+							    // algum motivo
+							    Ok(o) => debug!("send - {o}"),
+							    Err(e) => debug!("send erro - {e}"),
+						    }
+						}
 					    }
-					});
-				    }) {
-					let atual = Path::new(".");
-					if watcher.watch(atual, RecursiveMode::Recursive).is_err() {
-					    error!("Erro while set the watcher");
-					}
-				    } else {
-					error!("Erro while create the watcher");
-				    }
+				    }});
 				    loop {
 					if let Ok((s, _)) = listener.accept().await{
 					    debug!("New request accepted");
-					    let t = tx2.clone();
+					    let trx2 = ttx.subscribe();
 					    tokio::spawn(async move {
-						process_live(s, t).await
+						process_live(s, trx2).await
 					    });
 					} else {
 					    warn!("Connection not accepted");
@@ -82,7 +93,6 @@ async fn main() {
 				    }
 				},
 			    }
-
 		    } => {}
 		}
 	} else {
@@ -90,6 +100,11 @@ async fn main() {
 		exit(1);
 	}
 }
+
+/// aaaa
+use notify::event::EventKind;
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::{channel, Sender};
 
 // cli args
 fn commads() -> (u16, Mode) {

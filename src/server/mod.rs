@@ -34,16 +34,17 @@ async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response
 	Ok(not_found(&p))
 }
 
-use tokio::sync::broadcast::{Receiver, Sender};
-pub async fn process_live(stream: TcpStream, tx: Sender<u8>) {
+use tokio::sync::broadcast::Receiver;
+
+pub async fn process_live(stream: TcpStream, rx: Receiver<u8>) {
 	let io = TokioIo::new(stream);
 	if let Err(e) = auto::Builder::new(TokioExecutor::new())
 		.serve_connection(
 			io,
-			service_fn(|req| {
+			service_fn(move |req| {
 				// gambiarra por causa do borrowchekcer
-				let v = tx.subscribe();
-				async move { reload_server(req, v).await }
+				let mut rx = rx.resubscribe();
+				async move { reload_server(req, rx).await }
 			}),
 		)
 		.await
@@ -93,9 +94,19 @@ async fn reload_server(
 			    // analisar todos os arquivos ou só os requisitados, ambos imagino ter
 			    // que trazer alguma estrutura compartilhada para essa funcao, no caso
 			    // o channel para receber, que não deve ser oneshot
-			    // tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+			    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-			    let _ = rx.recv().await;
+			    // debug!("Entrando no recive");
+			 //    match rx.recv() {
+				// Ok(_) => {},
+				// Err(e) => debug!("Error reciver {e}"),
+			 //    }
+			    // let a = rx.try_recv(); // nao recebe de jeito nenhum
+			    // debug!("saiu do recive {:?}", a);
+
+			    // o resultado no recive é minimamenteo aceitavel pois ele fica dando
+			    // reload direto, mas tentar resolver, que o problema é apenas o
+			    // channel
 
 			    let update_chunk = String::from("<script>window.location.reload();</script>");
 			    debug!("Reload code send");
