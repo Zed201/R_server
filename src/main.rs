@@ -1,7 +1,6 @@
 mod server;
 use clap::*;
 use log::{debug, error, info, warn};
-use notify::{Config, Event, INotifyWatcher, RecommendedWatcher, RecursiveMode, Watcher};
 use server::locallog::*;
 use server::{process_live, process_web};
 use std::path::Path;
@@ -53,38 +52,11 @@ async fn main() {
 				},
 				Mode::Live => {
 
-				let path = Path::new(".");
-
-				    let (tx, rx) = std::sync::mpsc::channel();
-				    // tente fazer sem os unwarp, mas por algum motivo nao vai com if let,
-				    // tentei ate em outro arquivo/projeto, provavelmente por incompetencia
-				    // minha mas fazer oq
-				    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
-				    watcher.watch(path.as_ref(), RecursiveMode::Recursive).unwrap();
-
-				    let (ttx, _) = tokio::sync::broadcast::channel(100); // se for
-				    // trocar para mpsc deve trocar as implementações para arc
-				    let ttx2 = ttx.clone();
-				    tokio::spawn(async move {
-					while let Ok(i) = rx.recv() { // vai servir como broadcast manual pois o notify
-					    // não aceita o tokio::broadcast
-					    if let Ok(r) = i {
-						if matches!(r.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)){
-						    debug!("modificou");
-						    match ttx2.send(1) { // nao ta envidando por
-							    // algum motivo
-							    Ok(o) => debug!("send - {o}"),
-							    Err(e) => debug!("send erro - {e}"),
-						    }
-						}
-					    }
-				    }});
-				    loop {
+					    loop {
 					if let Ok((s, _)) = listener.accept().await{
 					    debug!("New request accepted");
-					    let trx2 = ttx.subscribe();
 					    tokio::spawn(async move {
-						process_live(s, trx2).await
+						process_live(s).await
 					    });
 					} else {
 					    warn!("Connection not accepted");
@@ -100,11 +72,6 @@ async fn main() {
 		exit(1);
 	}
 }
-
-/// aaaa
-use notify::event::EventKind;
-use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc::{channel, Sender};
 
 // cli args
 fn commads() -> (u16, Mode) {
