@@ -1,12 +1,14 @@
 mod server;
-use clap::*;
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use server::locallog::*;
+
+use clap::*;
+
 use server::{process_live, process_web};
-use std::path::Path;
+
 use std::process::exit;
+
 use tokio::net::TcpListener;
-use tokio::sync::broadcast;
 // use tokio::time::{sleep, Duration};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -35,7 +37,6 @@ async fn main() {
 			    off();
 			}
 			} => {}, // get out from ctrl+C
-			// _ = timer => {},
 			_ = async {
 			    match m {
 				Mode::Web => {
@@ -75,7 +76,6 @@ async fn main() {
 
 // cli args
 fn commads() -> (u16, Mode) {
-	// TODO: retrabalhar essas strings
 	let port_str: String = format!("Escolha da porta na qual o servidor vai ficar ouvindo, \nse for escolhido o modo Live, o servidor vai ficar na 'porta' \n e o websocket vai ficar na {}\n", 1);
 	let mode_str: &str =
 		"Escolha entre os modos web(servidor http normal) e o \nLive(servidor funcionando como live server)\n";

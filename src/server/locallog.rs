@@ -9,17 +9,32 @@ use std::str::FromStr;
 // Levels(crescente): error, warn, info, debug, trace, off
 
 struct Logger;
-// Implementar a questão de cores no logger
+static L: Logger = Logger;
+
+static LEVEL_DEFAULT: LevelFilter = LevelFilter::Info;
+
+// Usa a inicialização lazy para pegar o Maximo de Log
+static MAX_LEVEL: Lazy<LevelFilter> = Lazy::new(|| match env::var("LOG") {
+	Ok(val) => match LevelFilter::from_str(val.as_str()) {
+		Ok(v) => v,
+		Err(_) => LEVEL_DEFAULT,
+	},
+	Err(_) => LEVEL_DEFAULT,
+});
 
 impl log::Log for Logger {
 	fn enabled(&self, metadata: &log::Metadata) -> bool {
 		metadata.level() <= *MAX_LEVEL
 	}
+
 	fn flush(&self) {}
+
 	fn log(&self, record: &log::Record) {
 		if self.enabled(record.metadata()) {
 			let n = Local::now();
 			let mut f = format!("[{} - {}]", LogLevel::from(record.level()), n.format("%H:%M:%S"));
+
+			// Implementar a questão de cores no logger
 			f = match record.level() {
 				Level::Error => f.yellow(),
 				Level::Warn => f.red(),
@@ -31,17 +46,6 @@ impl log::Log for Logger {
 		}
 	}
 }
-
-static L: Logger = Logger;
-// Usa a inicialização lazy para pegar o Maximo de Log
-static MAX_LEVEL: Lazy<LevelFilter> = Lazy::new(|| match env::var("LOG") {
-	Ok(val) => match LevelFilter::from_str(val.as_str()) {
-		Ok(v) => v,
-		Err(_) => LEVEL_DEFAULT,
-	},
-	Err(_) => LEVEL_DEFAULT,
-});
-static LEVEL_DEFAULT: LevelFilter = LevelFilter::Debug;
 
 // personalizado para print
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug)]

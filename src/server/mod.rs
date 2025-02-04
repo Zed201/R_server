@@ -2,6 +2,7 @@ pub mod locallog;
 use log::{debug, error, info, warn};
 
 use std::convert::Infallible;
+use std::path::{Path, PathBuf};
 
 use tokio::net::TcpStream;
 
@@ -12,12 +13,8 @@ use hyper_util::{
 
 use hyper::{body::Bytes, service::service_fn, Request, Response};
 
-use std::path::{Path, PathBuf};
-
 use notify::event::EventKind;
-use notify::{Config, Event, INotifyWatcher, RecommendedWatcher, RecursiveMode, Watcher};
-use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc::{channel, Sender};
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
 pub async fn process_web(stream: TcpStream) {
 	let io = TokioIo::new(stream);
@@ -29,7 +26,6 @@ pub async fn process_web(stream: TcpStream) {
 	}
 }
 
-// TODO: Em pastas ele não mostra o erro de notfound
 async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response<reqwest::Body>, Infallible> {
 	let p = req_uri(r).await;
 	if p.metadata().is_ok() {
@@ -38,8 +34,6 @@ async fn normal_web_server(r: Request<hyper::body::Incoming>) -> Result<Response
 	}
 	Ok(not_found(&p))
 }
-
-use tokio::sync::broadcast::Receiver;
 
 pub async fn process_live(stream: TcpStream) {
 	let io = TokioIo::new(stream);
@@ -65,6 +59,7 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 
 	let p = req_uri(r).await;
 	let p2 = p.clone();
+
 	// TODO: Implementar o outo reload para outros alem de html
 	if p.metadata().is_ok() {
 		if let Some(ex) = p.extension() {
@@ -82,14 +77,13 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 			    // para teste de reload continuo
 			    // tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-
-
 			    let (tx, rx) = std::sync::mpsc::channel();
 
 			    // tente fazer sem os unwarp, mas por algum motivo nao vai com if let,
 			    // tentei ate em outro arquivo/projeto, provavelmente por incompetencia
 			    // minha mas fazer oq
 			    // let pa = PathBuf::from(".");
+
 			    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
 			    watcher.watch(p.as_path(), RecursiveMode::Recursive).unwrap();
 
@@ -114,7 +108,7 @@ async fn reload_server(r: Request<hyper::body::Incoming>) -> Result<Response<req
 			    // Path de "." para ele olhar tudo ele também buga( ) e em multiplos
 			    // navegadores buga independente( ); Quando digo bug, ele fica dando
 			    // autoreload sem parar; Sem nem como começar a resolver pq faço a
-			    // menor ideia
+			    // menor ideia doque esta acontecendo, o notify está pegando muitos eventos que nao tenho como restringir aparentemente
 
 			    let update_chunk = String::from("<script>window.location.reload();</script>");
 			    debug!("Reload code send");
@@ -147,7 +141,7 @@ async fn send_file(p: &PathBuf) -> Response<reqwest::Body> {
 		// deve ter is_dir() pois ele pode acabar entrando aqui se o
 		// try_exist falhar por alguma falta de permiss├úo
 		// criar o html do diretorio
-		//mesmo tirandoo try_exist e colocando o metadate deixei desse jeito aqui
+		// mesmo tirandoo try_exist e colocando o metadate deixei desse jeito aqui
 		if let Ok(page_dir) = read_dirb(p).await {
 			info!("Directory '{:?}' requested", p);
 			return response_builder(page_dir);
