@@ -14,3 +14,10 @@ Um servidor http criado a apartir do ultimo projeto do livro oficial de rust, ba
 - [X] Melhorar saida do modo live
 - [ ] Testar com multiplos html e testar com retirada de "marcadores" dos vistos
 - [ ] Fazer alguma logica para atualizar outros arquivos além de html
+
+### Rewrite todo:
+- [ ] Reescrever o sistema de logs com o env_logger
+- [ ] Implementar o graceful shutdown
+- [ ] Atualizar os tipos de request e coisas relacionadas a http para as estruturas do hyper
+- [ ] Abstrair as funções de servidor como um service
+- [ ] Criar um middleware para gerenciar as partes de live server, que vai ser como um layer em cima do service servidor
